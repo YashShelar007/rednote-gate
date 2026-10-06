@@ -110,6 +110,11 @@ server.registerTool(
   ({ url, limit }) => read("get_comments", { url, limit }),
 );
 server.registerTool(
+  "rednote_my_notes",
+  { description: "List the logged-in account's own notes, newest first: noteId, title, likes, url. Read only. Use the url for comments and replies on your own notes.", inputSchema: { limit: z.number().int().positive().max(30).optional() } },
+  ({ limit }) => read("my_notes", { limit }),
+);
+server.registerTool(
   "rednote_create_post",
   { description: "Queue a photo note for human approval. Does NOT post. Returns a queue id.", inputSchema: post },
   (a) => queue("create_post", a),
@@ -181,7 +186,7 @@ server.registerPrompt(
   },
   ({ url }) =>
     say(
-      `${url ? "" : "First ask the user which note: a url from rednote_search, or a title to search for. Then continue.\n"}Call rednote_get_comments for ${url ?? "that note"}. Pick at most 3 comments worth answering: real questions or real feedback. Skip spam, insults and anything you cannot answer honestly. ` +
+      `${url ? "" : "First ask the user which note. rednote_my_notes lists their own notes with urls. Then continue.\n"}Call rednote_get_comments for ${url ?? "that note"}. Pick at most 3 comments worth answering: real questions or real feedback. Skip spam, insults and anything you cannot answer honestly. ` +
         "For each, write a short, friendly, specific reply in the commenter's language, under 200 characters. Queue each with rednote_reply_comment, passing commentId, commentAuthor and commentText exactly as returned. " +
         "Replies go out at least 10 minutes apart because of the budget. List what you queued. " +
         RULES,

@@ -48,6 +48,7 @@ const reads = {
   search: guarded((a: { keyword: string; limit?: number }) => rn.search(String(a.keyword), a.limit ?? 10)),
   get_note: guarded((a: { url: string }) => rn.getNote(String(a.url))),
   get_comments: guarded((a: { url: string; limit?: number }) => rn.getComments(String(a.url), a.limit ?? 20)),
+  my_notes: guarded((a: { limit?: number }) => rn.myNotes(a.limit ?? 10)),
 };
 
 const SAY: Partial<Record<string, string>> = {

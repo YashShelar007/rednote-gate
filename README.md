@@ -35,6 +35,7 @@ Read tools run straight away:
 | `rednote_search` | `keyword`, `limit` (up to 30) | noteId, title, author, likes, url. The url carries an `xsec_token`. |
 | `rednote_get_note` | `url` | noteId, title, body, author, tags, likes, collects, comment count, ipLocation, time |
 | `rednote_get_comments` | `url`, `limit` (up to 50) | id, author, text, likes, reply count. First page only. |
+| `rednote_my_notes` | `limit` (up to 30) | your own notes, newest first: noteId, title, likes, url |
 | `rednote_queue_status` | `limit` | recent queue items: id, tool, status, last change. Never the approval link. |
 | `rednote_open_approval_page` | none | opens the approval page in your browser. Never returns the link. |
 
@@ -332,6 +333,7 @@ RedNote's pages contain hidden decoy buttons that a person cannot see or click. 
 | Login status | `rednote_login_status` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Search | `rednote_search` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Get note | `rednote_get_note` | verified headed 2026-10-06 (rednote.com); headless not yet |
+| My notes | `rednote_my_notes` | not yet verified |
 | Get comments | `rednote_get_comments` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Create post | `rednote_create_post` | dry run verified headed 2026-10-06 (rednote.com); no real post yet |
 | Create draft | `rednote_create_draft` | dry run verified headed 2026-10-06 (rednote.com); no real draft yet |

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pageProblem, parseNoteUrl, sameComment, titleLength } from "./rednote.js";
+import { notesFromProfile, pageProblem, parseNoteUrl, sameComment, titleLength } from "./rednote.js";
 
 const GOOD = "https://www.xiaohongshu.com/explore/6aa4b5e80000000028037e0b?xsec_token=ABArs&xsec_source=pc_search";
 
@@ -37,6 +37,14 @@ test("a reply target must match the approved author and text exactly", () => {
   assert.equal(sameComment({ author: "Alice", text: "这条路线难吗？还有别的吗" }, approved), false, "longer text");
   assert.equal(sameComment({ author: "Alice", text: "好" }, { author: "Alice", text: " " }), false, "blank approved text matches nothing");
   assert.equal(sameComment(undefined, approved), false);
+});
+
+test("my notes come from the first tab of the profile state, with links that carry the xsec_token", () => {
+  const state = [[{ id: "6aaa9dfb0000000026017c4b", xsecToken: "AB+x/y=", noteCard: { displayTitle: "周末", interactInfo: { likedCount: "3" } } }, { id: "", xsecToken: "z" }], [{ id: "liked-tab", xsecToken: "q" }]];
+  assert.deepEqual(notesFromProfile(state, "https://www.rednote.com", 10), [
+    { noteId: "6aaa9dfb0000000026017c4b", title: "周末", likes: "3", url: "https://www.rednote.com/explore/6aaa9dfb0000000026017c4b?xsec_token=AB%2Bx%2Fy%3D&xsec_source=pc_user" },
+  ]);
+  assert.deepEqual(notesFromProfile(undefined, "https://www.rednote.com", 10), []);
 });
 
 test("title length counts a CJK character as 1 and ASCII as half", () => {

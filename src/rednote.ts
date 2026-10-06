@@ -24,6 +24,7 @@ const NOT_DECOY = ":not([data-hp-kind]):not([button-hp-installed])";
 
 export const SEL = {
   loggedIn: ".main-container .user .link-wrapper .channel", // verified 2026-10-06
+  myProfileLink: `div.main-container li.user.side-bar-component a.link-wrapper${SEEN}`, // the sidebar "Me" link (VERIFY)
   // creator publish page
   imageTab: `div.creator-tab${SEEN}`, // the tab whose text is exactly 上传图文 (verified 2026-10-06)
   uploadInput: `.upload-input${NOT_DECOY}, input[type=file]${NOT_DECOY}`, // VERIFY
@@ -224,6 +225,31 @@ export function search(keyword: string, limit = 10) {
         likes: f.noteCard?.interactInfo?.likedCount ?? "",
         url: `${SITE()}/explore/${f.id}?xsec_token=${encodeURIComponent(f.xsecToken)}&xsec_source=pc_search`,
       }));
+  });
+}
+
+/** The profile page keeps one list per tab (notes, collected, liked); the first is the user's own notes. */
+export function notesFromProfile(tabs: Feed[][] | undefined, site: string, limit: number) {
+  return (tabs?.[0] ?? [])
+    .filter((f) => f.id && f.xsecToken)
+    .slice(0, limit)
+    .map((f) => ({
+      noteId: f.id,
+      title: f.noteCard?.displayTitle ?? "",
+      likes: f.noteCard?.interactInfo?.likedCount ?? "",
+      url: `${site}/explore/${f.id}?xsec_token=${encodeURIComponent(f.xsecToken)}&xsec_source=pc_user`,
+    }));
+}
+
+/** The logged-in account's own notes, newest first, with urls the other tools accept. */
+export function myNotes(limit = 10) {
+  return withPage(async (page) => {
+    await open(page, `${SITE()}/explore`);
+    const href = await page.locator(SEL.myProfileLink).first().getAttribute("href", { timeout: 10_000 });
+    if (!href?.includes("/user/profile/")) throw new Error("Could not find the link to your profile. Check rednote_login_status.");
+    await open(page, new URL(href, SITE()).toString());
+    const tabs = await readState<Feed[][]>(page, ["user", "notes"], (v) => Array.isArray(v) && Array.isArray(v[0]), 10_000);
+    return notesFromProfile(tabs, SITE(), limit);
   });
 }
 
