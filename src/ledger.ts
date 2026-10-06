@@ -51,7 +51,13 @@ export type BudgetCheck = { ok: true } | { ok: false; reason: string; retryAt: D
 
 /** Failed and unknown live attempts count too: a click that errored may still have posted. */
 export function budgetCheck(entries: Entry[], tool: Tool, now: Date, limits: Limits): BudgetCheck {
-  const live = entries.filter((e) => e.event === "attempt" && e.dryRun === false).map((e) => ({ tool: e.tool, at: new Date(e.at).getTime() }));
+  if (!Number.isFinite(limits.daily) || !Number.isFinite(limits.commentGapMin)) {
+    return { ok: false, reason: "the budget settings are not numbers", retryAt: new Date(NaN) };
+  }
+  if (limits.daily <= 0) return { ok: false, reason: "live writes are switched off (RN_DAILY_WRITES is 0)", retryAt: new Date(NaN) };
+  // A line whose time cannot be read counts as just now: never let it drop out of the budget.
+  const time = (at: string) => (Number.isNaN(Date.parse(at)) ? now.getTime() : Date.parse(at));
+  const live = entries.filter((e) => e.event === "attempt" && e.dryRun === false).map((e) => ({ tool: e.tool, at: time(e.at) }));
   const lastDay = live.filter((e) => e.at > now.getTime() - DAY_MS);
   if (lastDay.length >= limits.daily) {
     const retryAt = new Date(Math.min(...lastDay.map((e) => e.at)) + DAY_MS);

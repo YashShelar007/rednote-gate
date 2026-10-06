@@ -13,9 +13,9 @@ function setup() {
   return { dir: join(root, "queue"), ledger: join(root, "ledger.jsonl"), shots: join(root, "shots"), limits: LIMITS };
 }
 let clock = Date.parse("2026-01-01T00:00:00Z");
-const approved = (dir: string, text: string, tool: "post_comment" | "create_post" = "post_comment") => {
+const approved = (dir: string, text: string, tool: "post_comment" | "create_post" = "post_comment", mode: "dry_run" | "live" = "live") => {
   const { item } = enqueue(dir, tool, { noteUrl: "u", text }, new Date((clock += 1000)));
-  transition(dir, item.id, "approved");
+  transition(dir, item.id, "approved", undefined, new Date(), { approvedFor: mode });
   return item.id;
 };
 const counting = () => {
@@ -64,7 +64,7 @@ test("a live attempt that errors becomes unknown and is not retried", async () =
 
 test("dry run marks the item dry_run, writes a screenshot path, and spends no budget", async () => {
   const o = setup();
-  const id = approved(o.dir, "hello");
+  const id = approved(o.dir, "hello", "post_comment", "dry_run");
   assert.equal(await tick({ ...o, run: counting(), dryRun: true }), "dry_run");
   const result = readLedger(o.ledger).find((e) => e.event === "result");
   assert.equal(result?.screenshot, join(o.shots, `${id}.png`));
@@ -73,8 +73,8 @@ test("dry run marks the item dry_run, writes a screenshot path, and spends no bu
 
 test("one item per tick, oldest first", async () => {
   const o = setup();
-  const first = approved(o.dir, "one", "post_comment");
-  approved(o.dir, "two", "post_comment");
+  const first = approved(o.dir, "one", "post_comment", "dry_run");
+  approved(o.dir, "two", "post_comment", "dry_run");
   const run = counting();
   await tick({ ...o, run, dryRun: true });
   assert.deepEqual(run.calls, [first]);
@@ -101,12 +101,31 @@ test("a live error before the final click is failed, and the write can be queued
 
 test("a fresh approval waits out the undo window before it runs", async () => {
   const o = setup();
-  const id = approved(o.dir, "hello");
+  const id = approved(o.dir, "hello", "post_comment", "dry_run");
   const approvedAt = new Date(readItem(o.dir, id).history.at(-1)!.at).getTime();
   const run = counting();
   assert.equal(await tick({ ...o, run, dryRun: true, graceMs: 30_000, now: new Date(approvedAt + 29_000) }), null);
   assert.equal(await tick({ ...o, run, dryRun: true, graceMs: 30_000, now: new Date(approvedAt + 30_000) }), "dry_run");
   assert.deepEqual(run.calls, [id]);
+});
+
+test("an approval only runs in the mode it was given", async () => {
+  const o = setup();
+  approved(o.dir, "approved live", "post_comment", "live");
+  approved(o.dir, "approved dry", "post_comment", "dry_run");
+  const run = counting();
+  assert.equal(await tick({ ...o, run, dryRun: true }), "dry_run");
+  assert.equal(await tick({ ...o, run, dryRun: true }), null, "the live approval waits; it is not turned into a dry run");
+  assert.equal(run.calls.length, 1);
+});
+
+test("no write starts while a read holds the browser", async () => {
+  const o = setup();
+  approved(o.dir, "hello");
+  const run = counting();
+  assert.equal(await tick({ ...o, run, dryRun: false, idle: () => false }), null);
+  assert.deepEqual(run.calls, []);
+  assert.equal(await tick({ ...o, run, dryRun: false, idle: () => true }), "posted");
 });
 
 test("a captcha halts the worker until a human resumes", async () => {

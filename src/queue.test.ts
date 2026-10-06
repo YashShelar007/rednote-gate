@@ -42,6 +42,10 @@ test("a file that is not really an image is refused", () => {
   assert.throws(() => enqueue(fresh(), "create_post", { title: "t", body: "b", images: [fake] }), /not a JPEG, PNG or WebP/);
 });
 
+test("a path that is not a regular file is refused", () => {
+  assert.throws(() => enqueue(fresh(), "create_post", { title: "t", body: "b", images: [fresh()] }), /Not a regular file/);
+});
+
 test("relative image paths are refused", () => {
   assert.throws(() => enqueue(fresh(), "create_post", { title: "t", body: "b", images: ["a.png"] }), /absolute/);
 });

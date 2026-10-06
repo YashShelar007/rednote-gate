@@ -122,9 +122,15 @@ function page(o: ApprovalOptions): string {
   const used = entries.filter((e) => e.event === "attempt" && e.dryRun === false && new Date(e.at).getTime() > now.getTime() - 24 * 3600_000).length;
   const halt = haltReason(entries);
   const waiting = (i: Item) => {
+    if (i.approvedFor !== (o.dryRun ? "dry_run" : "live")) {
+      const was = i.approvedFor === "live" ? "a live run" : "a dry run";
+      return `Approved for ${was}, but the server now runs ${o.dryRun ? "dry" : "live"}. It will not run. Cancel it and approve again.`;
+    }
     if (o.dryRun) return "Runs about 30 seconds after approval. Dry runs spend no budget.";
     const b = budgetCheck(entries, i.tool, now, o.limits);
-    return b.ok ? "Runs about 30 seconds after approval." : `Waiting for budget: ${b.reason}. Next slot ${new Intl.DateTimeFormat(undefined, { timeStyle: "short", dateStyle: "medium" }).format(b.retryAt)}.`;
+    if (b.ok) return "Runs about 30 seconds after approval.";
+    const next = Number.isFinite(b.retryAt.getTime()) ? ` Next slot ${new Intl.DateTimeFormat(undefined, { timeStyle: "short", dateStyle: "medium" }).format(b.retryAt)}.` : "";
+    return `Waiting for budget: ${b.reason}.${next}`;
   };
   const approveLabel = (i: Item) => (o.dryRun ? "Approve dry run" : APPROVE_LIVE[i.tool]);
   const pending = items.filter((i) => i.status === "pending").map((i) => card(i, t, [["approve", approveLabel(i)], ["reject", "Reject"]]));
@@ -180,7 +186,9 @@ async function handle(o: ApprovalOptions, port: number, req: IncomingMessage, re
     const id = form.get("id") ?? "";
     try {
       if (!action || readItem(o.dir, id).status !== action.from) return send(409, "That item is no longer in a state where this button applies. Refresh.");
-      transition(o.dir, id, action.to, `${form.get("action")} on the approval page`);
+      const approving = action.to === "approved";
+      const note = approving ? (o.dryRun ? "approved for a dry run" : "approved to run live") : `${form.get("action")} on the approval page`;
+      transition(o.dir, id, action.to, note, new Date(), approving ? { approvedFor: o.dryRun ? "dry_run" : "live" } : {});
     } catch {
       return send(400, "Bad request.");
     }

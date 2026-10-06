@@ -19,6 +19,7 @@ export interface WorkerOptions {
   run: Runner;
   now?: Date;
   graceMs?: number; // undo window: an approval only runs once it is this old
+  idle?: () => boolean; // false while a read holds the browser: writes start only on an idle browser
 }
 
 /** Processes at most one item. Returns its outcome, "halted", or null when nothing was ready. */
@@ -26,8 +27,11 @@ export async function tick(o: WorkerOptions): Promise<Status | "halted" | null> 
   const now = o.now ?? new Date();
   const entries = readLedger(o.ledger);
   if (haltReason(entries)) return "halted";
+  if (o.idle && !o.idle()) return null;
+  const mode = o.dryRun ? "dry_run" : "live";
   const ready = (i: Item) =>
     i.status === "approved" &&
+    i.approvedFor === mode && // a dry-run approval never runs live, and the other way round
     now.getTime() - new Date(i.history.at(-1)!.at).getTime() >= (o.graceMs ?? 0) &&
     (o.dryRun || budgetCheck(entries, i.tool, now, o.limits).ok); // dry runs spend no budget
   const item = listItems(o.dir).find(ready);

@@ -18,12 +18,23 @@ const QUEUE = join(DATA, "queue");
 const LEDGER = join(DATA, "ledger.jsonl");
 const SHOTS = join(DATA, "screenshots");
 const DRY_RUN = process.env.RN_DRY_RUN !== "0";
-const PORT = Number(process.env.RN_APPROVAL_PORT || 7317);
-const LIMITS: Limits = { daily: Number(process.env.RN_DAILY_WRITES || 5), commentGapMin: Number(process.env.RN_COMMENT_GAP_MIN || 10) };
+/** A typo in a limit must stop the server, never mean "no limit". */
+function whole(name: string, fallback: number): number {
+  const raw = process.env[name] ?? String(fallback);
+  const n = Number(raw);
+  if (raw.trim() === "" || !Number.isInteger(n) || n < 0) throw new Error(`${name} must be a whole number, 0 or more. Got "${raw}".`);
+  return n;
+}
+const PORT = whole("RN_APPROVAL_PORT", 7317);
+const LIMITS: Limits = { daily: whole("RN_DAILY_WRITES", 5), commentGapMin: whole("RN_COMMENT_GAP_MIN", 10) };
 const log = (msg: string) => console.error(`[rednote-gate] ${msg}`);
 
 mkdirSync(QUEUE, { recursive: true });
 const lock = acquireLock(DATA);
+rn.setGuard(() => {
+  const halt = haltReason(readLedger(LEDGER));
+  if (halt) throw new Error(`Stopped after RedNote showed: ${halt}. A human must check the account and press Resume on the approval page.`);
+});
 
 const text = (data: unknown) => ({ content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
 
@@ -53,7 +64,9 @@ function queue(tool: Tool, args: Args) {
 }
 
 const noteUrl = z.string().url().refine((u) => { try { rn.parseNoteUrl(u); return true; } catch { return false; } }, "Use a note url returned by rednote_search: https://www.xiaohongshu.com/explore/<id>?xsec_token=... (or www.rednote.com)");
-const title = z.string().min(1).refine((t) => rn.titleLength(t) <= 20, "Title is longer than RedNote's 20 (a CJK character counts 1, ASCII counts half).");
+// Single-line fields: a line break would be typed as Enter, which can send a comment early.
+const oneLine = (max: number) => z.string().trim().min(1).max(max).refine((s) => !/[\r\n]/.test(s), "No line breaks here: Enter could send it early.");
+const title = oneLine(100).refine((t) => rn.titleLength(t) <= 20, "Title is longer than RedNote's 20 (a CJK character counts 1, ASCII counts half).");
 const post = {
   title,
   body: z.string().min(1).max(1000).describe("note body; line breaks are kept"),
@@ -86,14 +99,14 @@ server.registerTool(
 );
 server.registerTool(
   "rednote_post_comment",
-  { description: "Queue a comment on a note for human approval. Does NOT post. Returns a queue id.", inputSchema: { url: noteUrl, text: z.string().min(1).max(500) } },
+  { description: "Queue a comment on a note for human approval. Does NOT post. Returns a queue id.", inputSchema: { url: noteUrl, text: oneLine(500) } },
   ({ url, text: t }) => queue("post_comment", { noteUrl: url, text: t }),
 );
 server.registerTool(
   "rednote_reply_comment",
   {
     description: "Queue a reply to one comment for human approval. Does NOT post. Pass commentId, commentAuthor and commentText exactly as rednote_get_comments returned them.",
-    inputSchema: { url: noteUrl, commentId: z.string().regex(/^[0-9a-zA-Z]{8,32}$/), commentAuthor: z.string(), commentText: z.string().min(1), text: z.string().min(1).max(500) },
+    inputSchema: { url: noteUrl, commentId: z.string().regex(/^[0-9a-zA-Z]{8,32}$/), commentAuthor: z.string().trim().min(1), commentText: z.string().trim().min(1), text: oneLine(500) },
   },
   ({ url, text: t, ...rest }) => queue("reply_comment", { noteUrl: url, ...rest, text: t }),
 );
@@ -121,7 +134,7 @@ async function main() {
     const urlFile = join(DATA, "approval-url");
     writeFileSync(urlFile, `http://127.0.0.1:${port}/?t=${token}\n`, { mode: 0o600 });
     chmodSync(urlFile, 0o600);
-    stopWorker = startWorker({ dir: QUEUE, ledger: LEDGER, shots: SHOTS, limits: LIMITS, dryRun: DRY_RUN, run: (item, shot, dry) => rn.runWrite(item, QUEUE, shot, dry) });
+    stopWorker = startWorker({ dir: QUEUE, ledger: LEDGER, shots: SHOTS, limits: LIMITS, dryRun: DRY_RUN, idle: rn.browserIdle, run: (item, shot, dry) => rn.runWrite(item, QUEUE, shot, dry) });
     log(`approval page on 127.0.0.1:${port} (run \`npm run approve\` for the link). Mode: ${DRY_RUN ? "dry run" : "LIVE"}.`);
   } else {
     log(`another process (pid ${lock.pid}) owns the browser. This copy can queue writes and show status only.`);

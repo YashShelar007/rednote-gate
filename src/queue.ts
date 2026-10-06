@@ -22,6 +22,8 @@ export interface Item {
   contentHash: string;
   createdAt: string;
   status: Status;
+  /** The mode the human approved in. An approval only ever runs in that mode. */
+  approvedFor?: "dry_run" | "live";
   history: { status: Status; at: string; note?: string }[];
 }
 
@@ -56,7 +58,9 @@ function writeAtomic(path: string, data: string) {
 
 function checkImage(path: string): string {
   if (!isAbsolute(path)) throw new Error(`Image path must be absolute: ${path}`);
-  const size = statSync(path).size;
+  const st = statSync(path);
+  if (!st.isFile()) throw new Error(`Not a regular file: ${path}`);
+  const size = st.size;
   if (size > MAX_IMAGE_BYTES) throw new Error(`Image over 20 MB: ${path}`);
   const head = Buffer.alloc(12);
   const fd = openSync(path, "r");
@@ -90,13 +94,24 @@ export function enqueue(dir: string, tool: Tool, args: Args, now = new Date()): 
   if (isPost && (sources.length < 1 || sources.length > MAX_IMAGES)) throw new Error(`A photo note needs 1 to ${MAX_IMAGES} images.`);
   const exts = sources.map(checkImage);
   const imageSha256 = sources.map((p) => sha256(readFileSync(p)));
-  const contentHash = sha256(JSON.stringify({ tool, args: isPost ? { ...args, images: imageSha256 } : args }));
+  // Compare by note path, not the whole url: the xsec_token in a note url changes with every search.
+  const notePath = (u: string) => {
+    try {
+      return new URL(u).pathname;
+    } catch {
+      return u;
+    }
+  };
+  const canonical = isPost ? { ...args, images: imageSha256 } : { ...args, noteUrl: notePath((args as CommentArgs).noteUrl) };
+  const contentHash = sha256(JSON.stringify({ tool, args: canonical }));
 
   const existing = listItems(dir).find((i) => i.contentHash === contentHash && BLOCKS_DUPLICATE.includes(i.status));
   if (existing) return { item: existing, duplicate: true };
 
   const stamp = now.toISOString().replace(/[-:]/g, "").slice(0, 15);
-  const id = `q_${stamp}_${randomBytes(2).toString("hex")}`;
+  let id: string;
+  do id = `q_${stamp}_${randomBytes(2).toString("hex")}`;
+  while (existsSync(join(dir, `${id}.json`)));
   let stored = args;
   if (isPost) {
     mkdirSync(join(dir, id));
@@ -112,9 +127,10 @@ export function enqueue(dir: string, tool: Tool, args: Args, now = new Date()): 
   return { item, duplicate: false };
 }
 
-export function transition(dir: string, id: string, to: Status, note?: string, now = new Date()): Item {
+export function transition(dir: string, id: string, to: Status, note?: string, now = new Date(), fields: Pick<Item, "approvedFor"> = {}): Item {
   const item = readItem(dir, id);
   if (!NEXT[item.status].includes(to)) throw new Error(`Not allowed: ${item.status} -> ${to} (${id})`);
+  Object.assign(item, fields);
   item.status = to;
   item.history.push({ status: to, at: now.toISOString(), ...(note && { note }) });
   writeAtomic(join(dir, `${id}.json`), JSON.stringify(item, null, 2));

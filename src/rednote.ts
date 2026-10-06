@@ -63,10 +63,39 @@ export function titleLength(s: string): number {
 
 // Concurrency 1: every browser action waits for the previous one to finish.
 let chain: Promise<unknown> = Promise.resolve();
+let inFlight = 0;
+let guard = () => {};
+/** True when no browser action is running or waiting. The worker only starts a write then. */
+export const browserIdle = () => inFlight === 0;
+/** Runs inside the lock, right before each action, so a halt written meanwhile still stops it. */
+export function setGuard(fn: () => void): void {
+  guard = fn;
+}
 function serial<T>(fn: () => Promise<T>): Promise<T> {
-  const run = chain.then(fn, fn);
-  chain = run.catch(() => {});
+  inFlight++;
+  const task = async () => {
+    guard();
+    return fn();
+  };
+  const run = chain.then(task, task);
+  chain = run.catch(() => {}).finally(() => inFlight--);
   return run;
+}
+
+/** A reply goes out only if the comment with that id still has exactly the author and text the human saw. */
+export function sameComment(found: { author?: string; text?: string } | undefined, approved: { author: string; text: string }): boolean {
+  if (!found || !squash(approved.text) || !squash(approved.author)) return false;
+  return squash(found.text ?? "") === squash(approved.text) && squash(found.author ?? "") === squash(approved.author);
+}
+
+/** Read a field back before the final click: a topic or mention picker, or a stray key, must not
+ *  change what the human approved. */
+async function assertTyped(page: Page, selector: string, expected: string, input = false) {
+  const el = page.locator(selector).first();
+  const got = input ? await el.inputValue() : await el.innerText();
+  if (squash(got) !== squash(expected)) {
+    throw new Error(`A field reads "${squash(got).slice(0, 60)}" instead of the approved text. Not sending.`);
+  }
 }
 
 function withPage<T>(fn: (page: Page) => Promise<T>, screenshot?: string): Promise<T> {
@@ -225,6 +254,8 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
     await page.waitForFunction(([sel, n]) => document.querySelectorAll(sel as string).length >= (n as number), [SEL.uploadedImage, a.images.length], { timeout: 60_000 });
     await typeHuman(page, SEL.postTitle, a.title);
     await typeHuman(page, SEL.postBody, a.body);
+    await assertTyped(page, SEL.postTitle, a.title, true);
+    await assertTyped(page, SEL.postBody, a.body);
     await assertNotBlocked(page);
     if (dryRun) return;
     const button = page.locator(draft ? SEL.saveDraftButton : SEL.publishButton).first();
@@ -243,6 +274,7 @@ function comment(a: CommentArgs, screenshot: string, dryRun: boolean, p: Progres
     await open(page, url);
     await page.locator(SEL.commentOpen).first().click({ timeout: 15_000 });
     await typeHuman(page, SEL.commentInput, a.text);
+    await assertTyped(page, SEL.commentInput, a.text);
     if (dryRun) return;
     p.clicked = true;
     await page.locator(SEL.commentSubmit).first().click();
@@ -252,21 +284,23 @@ function comment(a: CommentArgs, screenshot: string, dryRun: boolean, p: Progres
 }
 
 function reply(a: ReplyArgs, screenshot: string, dryRun: boolean, p: Progress) {
-  const { url } = parseNoteUrl(a.noteUrl);
+  const { noteId, url } = parseNoteUrl(a.noteUrl);
   if (!/^[0-9a-zA-Z]{8,32}$/.test(a.commentId)) throw new Error(`Bad comment id: ${a.commentId}`);
   return withPage(async (page) => {
     await open(page, url);
-    const target = page.locator(SEL.commentById(a.commentId)).first();
-    await target.waitFor({ state: "attached", timeout: 15_000 }).catch(() => {
-      throw new Error(`Comment ${a.commentId} is not on the first page of comments, or it was deleted.`);
-    });
-    // The human approved a reply to specific words. If they changed, do not reply.
-    if (!squash(await target.innerText()).includes(squash(a.commentText).slice(0, 30))) {
-      throw new Error("That comment's text no longer matches what you approved. Not replying.");
+    // The human approved a reply to one author's exact words. Check both, from the page's own data.
+    const list = (await readState<Comment[]>(page, ["note", "noteDetailMap", noteId, "comments", "list"], (v) => Array.isArray(v) && v.length > 0)) ?? [];
+    const c = list.find((x) => x.id === a.commentId);
+    if (!c) throw new Error(`Comment ${a.commentId} is not on the first page of comments, or it was deleted. Not replying.`);
+    if (!sameComment({ author: c.userInfo?.nickname, text: c.content }, { author: a.commentAuthor, text: a.commentText })) {
+      throw new Error("That comment's author or text no longer matches what you approved. Not replying.");
     }
+    const target = page.locator(SEL.commentById(a.commentId)).first();
+    await target.waitFor({ state: "attached", timeout: 15_000 });
     await target.scrollIntoViewIfNeeded();
     await target.locator(SEL.replyButton).first().click({ timeout: 10_000 });
     await typeHuman(page, SEL.commentInput, a.text);
+    await assertTyped(page, SEL.commentInput, a.text);
     if (dryRun) return;
     p.clicked = true;
     await page.locator(SEL.commentSubmit).first().click();
