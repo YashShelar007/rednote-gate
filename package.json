@@ -1,0 +1,28 @@
+{
+  "name": "rednote-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RedNote (Xiaohongshu) MCP server — search/read + create posts, drafts, comments, replies via Playwright.",
+  "type": "module",
+  "bin": {
+    "rednote-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "login": "node dist/login.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "playwright": "^1.47.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
