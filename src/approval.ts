@@ -133,8 +133,10 @@ function page(o: ApprovalOptions): string {
     if (o.dryRun) return "Runs about 30 seconds after approval. Dry runs spend no budget.";
     const b = budgetCheck(entries, i.tool, now, o.limits);
     if (b.ok) return "Runs about 30 seconds after approval.";
-    const next = Number.isFinite(b.retryAt.getTime()) ? ` Next slot ${new Intl.DateTimeFormat(undefined, { timeStyle: "short", dateStyle: "medium" }).format(b.retryAt)}.` : "";
-    return `Waiting for budget: ${b.reason}.${next}`;
+    if (!Number.isFinite(b.retryAt.getTime())) return `Will not run: ${b.reason}.`;
+    const at = new Intl.DateTimeFormat(undefined, { timeStyle: "short", dateStyle: "medium" }).format(b.retryAt);
+    const why = b.reason.startsWith("one comment") ? "Comments and replies go out at least 10 minutes apart." : `The daily limit of ${o.limits.daily} live writes is reached.`;
+    return `Sends automatically at ${at}. ${why}`;
   };
   const approveLabel = (i: Item) => (o.dryRun ? "Approve dry run" : APPROVE_LIVE[i.tool]);
   const pending = items.filter((i) => i.status === "pending").map((i) => card(i, t, [["approve", approveLabel(i)], ["reject", "Reject"]]));
