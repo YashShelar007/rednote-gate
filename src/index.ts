@@ -11,7 +11,10 @@ import { join } from "node:path";
 import * as rn from "./rednote.js";
 import { enqueue, listItems, type Args, type Tool } from "./queue.js";
 import { THEMES, renderCards } from "./cards.js";
-import { DATA, QUEUE, URL_FILE, notify } from "./config.js";
+import { helpText } from "./help.js";
+import { budgetCheck, readLedger } from "./ledger.js";
+import { site } from "./session.js";
+import { DATA, DRY_RUN, LEDGER, LIMITS, QUEUE, URL_FILE, notify } from "./config.js";
 
 const SERVICE = fileURLToPath(new URL("./service.js", import.meta.url));
 mkdirSync(QUEUE, { recursive: true });
@@ -184,6 +187,18 @@ server.registerTool(
   async ({ cards, theme }) => text(await renderCards(cards, join(DATA, "cards"), theme)),
 );
 server.registerTool(
+  "rednote_help",
+  { description: "What rednote-gate can do: every tool and workflow, the current mode, and what is left of today's budget. Never touches RedNote." },
+  () => {
+    const entries = readLedger(LEDGER);
+    const live24 = entries.filter((e) => e.event === "attempt" && e.dryRun === false && Date.now() - Date.parse(e.at) < 24 * 3600_000);
+    const writesUsed = live24.filter((e) => e.tool !== "like_note").length;
+    const slot = budgetCheck(entries, "create_post", new Date(), LIMITS);
+    const nextWrite = !slot.ok && Number.isFinite(slot.retryAt.getTime()) ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(slot.retryAt) : undefined;
+    return text(helpText({ version, site: site(), dryRun: DRY_RUN, writesUsed, likesUsed: live24.length - writesUsed, limits: LIMITS, nextWrite }));
+  },
+);
+server.registerTool(
   "rednote_queue_status",
   { description: "List recent queued writes and what happened to them. Read only. Never touches the browser.", inputSchema: { limit: z.number().int().positive().max(50).optional() } },
   ({ limit }) =>
@@ -263,6 +278,11 @@ server.registerPrompt(
         "Summarise: what people post about it, the questions commenters keep asking, title patterns that get likes, common hashtags, and 3 concrete post ideas for this account. " +
         "This is read only: do not queue anything. Space out the reads; do not call tools in parallel.",
     ),
+);
+server.registerPrompt(
+  "help",
+  { title: "What can rednote-gate do?", description: "Every tool and workflow, your current mode, and what is left of today's budget." },
+  () => say("Call rednote_help and present it to the user in a short, friendly overview. Keep the tool names, the mode and today's budget exactly as given."),
 );
 server.registerPrompt(
   "review_queue",

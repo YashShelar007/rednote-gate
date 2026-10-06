@@ -10,7 +10,8 @@ First public release. Every flow below was checked against the live site on 2026
 - Writes, each queued for a human Approve click: photo notes with up to 9 images, linked topics and emoji; drafts; video notes; comments; replies; likes.
 - Approval page on 127.0.0.1 that opens by itself, shows exactly what will be sent, gives 30 seconds to cancel, and shows a screenshot of every attempt. Mac notifications.
 - Text-card images rendered locally for notes without photos.
-- Workflows as slash commands: post_from_concept, post_photos, reply_to_comments, research_topic, review_queue.
+- Workflows as slash commands: post_from_concept, post_photos, reply_to_comments, research_topic, review_queue, help.
+- `rednote_help`: every tool and workflow, the current mode, and what is left of today's budget.
 - `npm run setup`, `npm run live`, `npm run dry`, `npm run stop`.
 
 ### Security and safety

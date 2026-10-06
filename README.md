@@ -21,6 +21,7 @@ That installs Chromium, builds, opens the QR login for your throwaway account, a
 | `/rednote-gate:post_from_concept` | Claude researches a concept, writes an original note, renders text-card images, and queues it |
 | `/rednote-gate:research_topic` | Claude searches a topic, reads the top notes and comments, and summarises what works. Read only. |
 | `/rednote-gate:review_queue` | Claude summarises what is waiting and what happened |
+| `/rednote-gate:help` | every tool and workflow, your mode, and what is left of today's budget |
 
 Or just ask in plain words ("post these two photos about my hike"). The first time you use a rednote tool, a small background service starts. It owns the browser, the approval page and the worker, and it keeps running after you close Claude Code, so the approval page always works and approved items always run. It closes the browser window after 5 idle minutes. Stop it with `npm run stop`. When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
 
@@ -41,6 +42,7 @@ Read tools run straight away:
 | `rednote_make_cards` | `cards` (1 to 9: title, up to 8 lines, footer), optional `theme` (`notebook`, `sticky`, `chalkboard`, `blueprint`) | renders 1080x1440 text-card PNGs on your computer and returns their paths. Never touches RedNote. |
 | `rednote_my_notes` | `limit` (up to 30) | your own notes, newest first: noteId, title, likes, url |
 | `rednote_queue_status` | `limit` | recent queue items: id, tool, status, last change. Never the approval link. |
+| `rednote_help` | none | what rednote-gate can do, the current mode, and today's remaining budget |
 | `rednote_open_approval_page` | none | opens the approval page in your browser. Never returns the link. |
 
 Write tools only add an item to the queue and return its queue id. They never touch the browser.
