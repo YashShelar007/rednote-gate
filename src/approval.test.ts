@@ -138,6 +138,21 @@ test("images are served only from the queue, by item id and index", async () => 
   s.close();
 });
 
+test("a queued video is served for preview, and only from the queue", async () => {
+  const s = await setup();
+  const src = join(mkdtempSync(join(tmpdir(), "rng-vid-")), "clip.mp4");
+  writeFileSync(src, Buffer.concat([Buffer.from("0000001c667479706d703432", "hex"), Buffer.alloc(64)]));
+  const { item } = enqueue(s.dir, "create_video", { title: "t", body: "b", video: src });
+  const page = await s.call("GET", `/?t=${TOKEN}`);
+  assert.match(page.body, /<video[^>]+src="\/media\//);
+  assert.match(String(page.headers["content-security-policy"]), /media-src 'self'/);
+  const ok = await s.call("GET", `/media/${item.id}?t=${TOKEN}`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers["content-type"], "video/mp4");
+  assert.equal((await s.call("GET", `/media/..%2Fledger?t=${TOKEN}`)).status, 404);
+  s.close();
+});
+
 test("Resume clears a captcha halt", async () => {
   const s = await setup();
   writeFileSync(s.ledger, JSON.stringify({ at: new Date().toISOString(), event: "blocked", detail: "captcha" }) + "\n");

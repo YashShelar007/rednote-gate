@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import * as rn from "./rednote.js";
 import { enqueue, listItems, type Args, type Tool } from "./queue.js";
+import { THEMES, renderCards } from "./cards.js";
 import { DATA, QUEUE, URL_FILE, notify } from "./config.js";
 
 const SERVICE = fileURLToPath(new URL("./service.js", import.meta.url));
@@ -132,6 +133,14 @@ server.registerTool(
   (a) => queue("create_draft", a),
 );
 server.registerTool(
+  "rednote_create_video_post",
+  {
+    description: "Queue a video note for human approval. Does NOT post. One MP4 or MOV, absolute path, up to 500 MB. RedNote processes the video after upload, which can take minutes.",
+    inputSchema: { title, body: post.body, video: z.string().describe("absolute path to an MP4 or MOV file"), topics: post.topics },
+  },
+  (a) => queue("create_video", a),
+);
+server.registerTool(
   "rednote_like_note",
   {
     description: "Queue a like on a note for human approval. Does NOT like it yet. Likes have their own daily cap (10 by default). Pass noteTitle so the human sees which note.",
@@ -156,6 +165,22 @@ server.registerTool(
   "rednote_open_approval_page",
   { description: "Open the approval page in the user's browser so they can approve or reject queued writes. Returns no link." },
   async () => text(openApproval(await service(), true) ? "Opened the approval page in the user's browser." : "Could not open it. The user can run `npm run approve` in the rednote-gate folder."),
+);
+server.registerTool(
+  "rednote_make_cards",
+  {
+    description:
+      "Render text-card images (1080x1440 PNG, RedNote's 3:4) on this computer, for notes without photos. Never touches RedNote. " +
+      "Returns absolute paths to pass as images to rednote_create_post. Card 1 is the cover: a short title (use \\n to break a Chinese title where it reads best) and 0 to 2 lines; later cards carry up to 8 short lines.",
+    inputSchema: {
+      cards: z
+        .array(z.object({ title: z.string().min(1).max(40), lines: z.array(z.string().max(60)).max(8).optional(), footer: z.string().max(40).optional() }))
+        .min(1)
+        .max(9),
+      theme: z.enum(THEMES as [string, ...string[]]).optional().describe(`one of: ${THEMES.join(", ")}`),
+    },
+  },
+  async ({ cards, theme }) => text(await renderCards(cards, join(DATA, "cards"), theme)),
 );
 server.registerTool(
   "rednote_queue_status",
@@ -189,6 +214,23 @@ server.registerPrompt(
         `Draft a RedNote photo note about: ${about ?? "(ask the user)"}\nPhotos, in this order (the first is the cover): ${photos ?? "(ask the user)"}\n` +
         "Write it the way people write on RedNote: a catchy title and a warm, specific body with short paragraphs; emoji are fine. Put 3 to 5 relevant topics in the topics field (no # in the body). " +
         "Match the language of the brief. Then call rednote_create_post with the photos in the given order. Show the user the title and body you queued. " +
+        RULES,
+    ),
+);
+server.registerPrompt(
+  "post_from_concept",
+  {
+    title: "Turn a concept into a post",
+    description: "Research a concept on RedNote, write a note about it, make text-card images, and queue it for your approval.",
+    argsSchema: { concept: z.string().optional().describe("the idea, topic or angle for the post") },
+  },
+  ({ concept }) =>
+    say(
+      `${concept ? "" : "First ask the user what the post should be about. Then continue.\n"}Concept: ${concept ?? "(ask the user)"}\n` +
+        "1. Research: rednote_search for the concept (limit 10), then read the 2 or 3 most-liked notes with rednote_get_note. Note what titles, angles and tips get likes. One call at a time.\n" +
+        "2. Write an original note (never copy others' text): a catchy title, a useful body with short paragraphs and concrete tips, emoji welcome, and 3 to 5 topics in the topics field. Match the concept's language.\n" +
+        "3. Make 3 to 5 cards with rednote_make_cards: card 1 is the cover (the hook as title, one short subtitle line), the rest carry the key points, 3 to 6 short lines each. Pick one theme for the set.\n" +
+        "4. Queue it with rednote_create_post using the card paths in order. Show the user the title, body and topics you queued. " +
         RULES,
     ),
 );

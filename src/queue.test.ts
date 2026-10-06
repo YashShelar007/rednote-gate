@@ -46,6 +46,21 @@ test("a path that is not a regular file is refused", () => {
   assert.throws(() => enqueue(fresh(), "create_post", { title: "t", body: "b", images: [fresh()] }), /Not a regular file/);
 });
 
+const MP4 = Buffer.concat([Buffer.from("0000001c667479706d703432", "hex"), Buffer.alloc(64)]); // ....ftypmp42
+test("a video is checked by its signature, copied in and hashed", () => {
+  const src = fresh();
+  const dir = fresh();
+  const { item } = enqueue(dir, "create_video", { title: "t", body: "b", video: png(src, "clip.mp4", MP4) });
+  const rel = (item.args as { video: string }).video;
+  assert.match(rel, /^q_.*\/video\.mp4$/);
+  assert.deepEqual(readFileSync(join(dir, rel)), MP4);
+  assert.equal(item.videoSha256?.length, 64);
+});
+
+test("a file that is not really a video is refused", () => {
+  assert.throws(() => enqueue(fresh(), "create_video", { title: "t", body: "b", video: png(fresh(), "fake.mp4") }), /not an MP4 or MOV/);
+});
+
 test("relative image paths are refused", () => {
   assert.throws(() => enqueue(fresh(), "create_post", { title: "t", body: "b", images: ["a.png"] }), /absolute/);
 });

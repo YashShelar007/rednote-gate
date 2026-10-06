@@ -5,7 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { extname, isAbsolute, join } from "node:path";
 
-export type Tool = "create_post" | "create_draft" | "post_comment" | "reply_comment" | "like_note";
+export type Tool = "create_post" | "create_draft" | "create_video" | "post_comment" | "reply_comment" | "like_note";
 export type Status = "pending" | "approved" | "rejected" | "posting" | "posted" | "dry_run" | "failed" | "unknown";
 
 /** images are paths relative to the queue folder, e.g. "q_20261006T120000_ab12/0.png". */
@@ -13,13 +13,16 @@ export type PostArgs = { title: string; body: string; images: string[]; topics?:
 export type CommentArgs = { noteUrl: string; text: string };
 export type ReplyArgs = { noteUrl: string; commentId: string; commentAuthor: string; commentText: string; text: string };
 export type LikeArgs = { noteUrl: string; noteTitle?: string };
-export type Args = PostArgs | CommentArgs | ReplyArgs | LikeArgs;
+/** video is a path relative to the queue folder, e.g. "q_20261006T120000_ab12/video.mp4". */
+export type VideoArgs = { title: string; body: string; video: string; topics?: string[] };
+export type Args = PostArgs | CommentArgs | ReplyArgs | LikeArgs | VideoArgs;
 
 export interface Item {
   id: string;
   tool: Tool;
   args: Args;
   imageSha256?: string[];
+  videoSha256?: string;
   contentHash: string;
   createdAt: string;
   status: Status;
@@ -50,7 +53,39 @@ const MAGIC: Array<[string, (b: Buffer) => boolean]> = [
   ["webp", (b) => b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP"],
 ];
 
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024; // project limit, not RedNote's
+
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
+
+/** Hashes a file in 1 MB chunks, so a video never has to fit in memory. */
+export function fileSha256(path: string): string {
+  const h = createHash("sha256");
+  const buf = Buffer.alloc(1 << 20);
+  const fd = openSync(path, "r");
+  try {
+    for (let n; (n = readSync(fd, buf, 0, buf.length, null)) > 0; ) h.update(buf.subarray(0, n));
+  } finally {
+    closeSync(fd);
+  }
+  return h.digest("hex");
+}
+
+/** MP4 and MOV both carry "ftyp" at byte 4; brand "qt  " means QuickTime. */
+function checkVideo(path: string): string {
+  if (!isAbsolute(path)) throw new Error(`Video path must be absolute: ${path}`);
+  const st = statSync(path);
+  if (!st.isFile()) throw new Error(`Not a regular file: ${path}`);
+  if (st.size > MAX_VIDEO_BYTES) throw new Error(`Video over 500 MB: ${path}`);
+  const head = Buffer.alloc(12);
+  const fd = openSync(path, "r");
+  try {
+    readSync(fd, head, 0, 12, 0);
+  } finally {
+    closeSync(fd);
+  }
+  if (head.toString("latin1", 4, 8) !== "ftyp") throw new Error(`File is not an MP4 or MOV video: ${path}`);
+  return head.toString("latin1", 8, 12) === "qt  " ? ".mov" : ".mp4";
+}
 
 function writeAtomic(path: string, data: string) {
   writeFileSync(`${path}.tmp`, data);
@@ -94,7 +129,11 @@ export function enqueue(dir: string, tool: Tool, args: Args, now = new Date()): 
   const sources = isPost ? (args as PostArgs).images : [];
   if (isPost && (sources.length < 1 || sources.length > MAX_IMAGES)) throw new Error(`A photo note needs 1 to ${MAX_IMAGES} images.`);
   const exts = sources.map(checkImage);
-  const imageSha256 = sources.map((p) => sha256(readFileSync(p)));
+  const imageSha256 = sources.map(fileSha256);
+  const isVideo = tool === "create_video";
+  const videoSrc = isVideo ? (args as VideoArgs).video : "";
+  const videoExt = isVideo ? checkVideo(videoSrc) : "";
+  const videoSha256 = isVideo ? fileSha256(videoSrc) : "";
   // Compare by note path, not the whole url: the xsec_token in a note url changes with every search.
   const notePath = (u: string) => {
     try {
@@ -103,7 +142,11 @@ export function enqueue(dir: string, tool: Tool, args: Args, now = new Date()): 
       return u;
     }
   };
-  const canonical = isPost ? { ...args, images: imageSha256 } : { ...args, noteUrl: notePath((args as CommentArgs).noteUrl) };
+  const canonical = isPost
+    ? { ...args, images: imageSha256 }
+    : isVideo
+      ? { ...args, video: videoSha256 }
+      : { ...args, noteUrl: notePath((args as CommentArgs).noteUrl) };
   const contentHash = sha256(JSON.stringify({ tool, args: canonical }));
 
   const existing = listItems(dir).find((i) => i.contentHash === contentHash && BLOCKS_DUPLICATE.includes(i.status));
@@ -122,8 +165,13 @@ export function enqueue(dir: string, tool: Tool, args: Args, now = new Date()): 
     });
     stored = { ...(args as PostArgs), images };
   }
+  if (isVideo) {
+    mkdirSync(join(dir, id));
+    copyFileSync(videoSrc, join(dir, id, `video${videoExt}`));
+    stored = { ...(args as VideoArgs), video: `${id}/video${videoExt}` };
+  }
   const at = now.toISOString();
-  const item: Item = { id, tool, args: stored, ...(isPost && { imageSha256 }), contentHash, createdAt: at, status: "pending", history: [{ status: "pending", at }] };
+  const item: Item = { id, tool, args: stored, ...(isPost && { imageSha256 }), ...(isVideo && { videoSha256 }), contentHash, createdAt: at, status: "pending", history: [{ status: "pending", at }] };
   writeAtomic(join(dir, `${id}.json`), JSON.stringify(item, null, 2));
   return { item, duplicate: false };
 }

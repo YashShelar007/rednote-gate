@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { timingSafeEqual } from "node:crypto";
-import { listItems, readItem, transition, type Item, type PostArgs, type CommentArgs, type LikeArgs, type ReplyArgs, type Status } from "./queue.js";
+import { listItems, readItem, transition, type Item, type PostArgs, type CommentArgs, type LikeArgs, type ReplyArgs, type Status, type VideoArgs } from "./queue.js";
 import { appendLedger, budgetCheck, haltReason, readLedger, type Limits } from "./ledger.js";
 
 export interface ApprovalOptions {
@@ -26,9 +26,9 @@ const ACTIONS: Record<string, { from: Status; to: Status }> = {
   reject: { from: "pending", to: "rejected" },
   cancel: { from: "approved", to: "rejected" },
 };
-const TYPES: Record<string, string> = { ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
+const TYPES: Record<string, string> = { ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".mp4": "video/mp4", ".mov": "video/quicktime" };
 const HEADERS = {
-  "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
+  "Content-Security-Policy": "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",
   "X-Frame-Options": "DENY",
   // same-origin, not no-referrer: with no-referrer Chrome sends "Origin: null" on this page's own forms.
   "Referrer-Policy": "same-origin",
@@ -57,10 +57,11 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-const KIND: Record<Item["tool"], string> = { create_post: "Photo note", create_draft: "Draft", post_comment: "Comment", reply_comment: "Reply", like_note: "Like" };
+const KIND: Record<Item["tool"], string> = { create_post: "Photo note", create_draft: "Draft", create_video: "Video note", post_comment: "Comment", reply_comment: "Reply", like_note: "Like" };
 const APPROVE_LIVE: Record<Item["tool"], string> = {
   create_post: "Approve and publish",
   create_draft: "Approve and save draft",
+  create_video: "Approve and publish video",
   post_comment: "Approve and send",
   reply_comment: "Approve and send reply",
   like_note: "Approve and like",
@@ -88,6 +89,11 @@ function content(item: Item, t: string): string {
       .join("");
     const topics = a.topics?.length ? `<dt>Topics</dt><dd>${a.topics.map((t) => `#${esc(t)}`).join(" ")}</dd>` : "";
     return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd>${topics}<dt>Images, in posting order</dt><dd><ol class=imgs>${imgs}</ol></dd></dl>`;
+  }
+  if (item.tool === "create_video") {
+    const a = item.args as VideoArgs;
+    const topics = a.topics?.length ? `<dt>Topics</dt><dd>${a.topics.map((t) => `#${esc(t)}`).join(" ")}</dd>` : "";
+    return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd>${topics}<dt>Video</dt><dd><video class=shot controls preload=metadata src="/media/${item.id}?t=${t}"></video></dd></dl>`;
   }
   if (item.tool === "like_note") {
     const a = item.args as LikeArgs;
@@ -185,6 +191,16 @@ async function handle(o: ApprovalOptions, port: number, req: IncomingMessage, re
       } catch {
         return send(404, "Not found.");
       }
+    }
+    const media = url.pathname.match(/^\/media\/([^/]+)$/);
+    if (media) {
+      try {
+        const rel = (readItem(o.dir, media[1]).args as VideoArgs).video;
+        if (rel) return send(200, readFileSync(join(o.dir, rel)), TYPES[extname(rel)] ?? "application/octet-stream");
+      } catch {
+        // bad id or missing file: fall through to 404
+      }
+      return send(404, "Not found.");
     }
     const m = url.pathname.match(/^\/img\/([^/]+)\/(\d+)$/);
     if (m) {

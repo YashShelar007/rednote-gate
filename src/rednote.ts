@@ -3,13 +3,11 @@
 // paths were informed by xpzouying/xiaohongshu-mcp (Apache-2.0, a5c8f77) and sykuang/rednote-mcp
 // (MIT, 7e87754). Reads use the page's own __INITIAL_STATE__ where possible: it changes less
 // often than the DOM.
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Locator, Page } from "playwright";
 import { hasCookie, newPage, saveSession, site } from "./session.js";
 import { BlockedError, NotSentError } from "./ledger.js";
-import type { CommentArgs, Item, LikeArgs, PostArgs, ReplyArgs } from "./queue.js";
+import { fileSha256, type CommentArgs, type Item, type LikeArgs, type PostArgs, type ReplyArgs, type VideoArgs } from "./queue.js";
 
 const TYPE_MIN = Number(process.env.RN_TYPE_MIN_MS || 40);
 const TYPE_MAX = Number(process.env.RN_TYPE_MAX_MS || 140);
@@ -363,7 +361,7 @@ async function addTopic(page: Page, topic: string) {
 
 /** The publish bar's buttons sit 72px either side of its centre (measured 2026-10-06). Its own
  *  attributes name them, so check those first: if the layout changed, stop rather than click blind. */
-async function finalPublishButton(page: Page, draft: boolean): Promise<{ target: Locator; position?: { x: number; y: number } }> {
+async function finalPublishButton(page: Page, draft: boolean, waitMs = 20_000): Promise<{ target: Locator; position?: { x: number; y: number } }> {
   const bar = page.locator(SEL.publishBar).first();
   if ((await bar.count()) === 0) {
     const target = page.locator(draft ? SEL.saveDraftButton : SEL.publishButton).first();
@@ -372,7 +370,7 @@ async function finalPublishButton(page: Page, draft: boolean): Promise<{ target:
   }
   const [label, disabled, want] = draft ? ["save-text", "save-disabled", "暂存离开"] : ["submit-text", "submit-disabled", "发布"];
   if ((await bar.getAttribute(label)) !== want) throw new Error(`The publish bar no longer has a "${want}" button. Not clicking.`);
-  for (const end = Date.now() + 20_000; (await bar.getAttribute(disabled)) !== "false"; ) {
+  for (const end = Date.now() + waitMs; (await bar.getAttribute(disabled)) !== "false"; ) {
     if (Date.now() > end) throw new Error(`The "${want}" button stayed disabled.`);
     await page.waitForTimeout(500);
   }
@@ -380,6 +378,32 @@ async function finalPublishButton(page: Page, draft: boolean): Promise<{ target:
   const box = await bar.boundingBox();
   if (!box) throw new Error("The publish bar is not on screen.");
   return { target: bar, position: { x: box.width / 2 + (draft ? -72 : 72), y: box.height / 2 } };
+}
+
+/** A video note: upload on the 上传视频 tab, fill the form, then wait (up to 10 minutes) for RedNote
+ *  to finish processing, which is when it enables 发布. */
+function publishVideo(a: VideoArgs, screenshot: string, dryRun: boolean, p: Progress) {
+  return withPage(async (page) => {
+    await open(page, `${CREATOR()}/publish/publish?source=official`);
+    if (!new URL(page.url()).pathname.startsWith("/publish")) throw new Error("The creator site is not logged in. Run `npm run login` again.");
+    await page.locator(SEL.imageTab).filter({ hasText: /^\s*上传视频\s*$/ }).first().click({ timeout: 15_000 });
+    await page.waitForTimeout(rand(800, 1500));
+    await page.locator(SEL.uploadInput).first().setInputFiles(a.video);
+    await page.locator(SEL.postTitle).first().waitFor({ state: "visible", timeout: 120_000 }); // the form appears once the upload starts
+    await typeHuman(page, SEL.postTitle, a.title);
+    await typeHuman(page, SEL.postBody, a.body);
+    for (const t of a.topics ?? []) await addTopic(page, t);
+    await assertTyped(page, SEL.postTitle, a.title, true);
+    const typed = await page.locator(SEL.postBody).first().innerText();
+    if (!bodyMatches(typed, a.body, a.topics ?? [])) throw new Error(`The body reads "${squash(typed).slice(0, 80)}" instead of the approved text and topics. Not sending.`);
+    await assertNotBlocked(page);
+    const { target, position } = await finalPublishButton(page, false, 10 * 60_000);
+    if (dryRun) return;
+    p.clicked = true;
+    await target.click(position ? { position } : {});
+    await page.waitForURL((u) => !u.pathname.includes("/publish/publish"), { timeout: 60_000 });
+    await assertNotBlocked(page);
+  }, screenshot);
 }
 
 function comment(a: CommentArgs, screenshot: string, dryRun: boolean, p: Progress) {
@@ -452,11 +476,16 @@ export async function runWrite(item: Item, queueDir: string, screenshot: string,
       const a = item.args as PostArgs;
       const images = a.images.map((rel) => join(queueDir, rel));
       images.forEach((path, n) => {
-        if (createHash("sha256").update(readFileSync(path)).digest("hex") !== item.imageSha256?.[n]) {
+        if (fileSha256(path) !== item.imageSha256?.[n]) {
           throw new Error(`Image ${n + 1} changed after it was queued. Not posting.`);
         }
       });
       await publish({ ...a, images }, item.tool === "create_draft", screenshot, dryRun, p);
+    } else if (item.tool === "create_video") {
+      const a = item.args as VideoArgs;
+      const video = join(queueDir, a.video);
+      if (fileSha256(video) !== item.videoSha256) throw new Error("The video changed after it was queued. Not posting.");
+      await publishVideo({ ...a, video }, screenshot, dryRun, p);
     } else if (item.tool === "like_note") {
       await like(item.args as LikeArgs, screenshot, dryRun, p);
     } else if (item.tool === "post_comment") {

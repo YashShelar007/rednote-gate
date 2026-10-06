@@ -16,6 +16,7 @@ That installs Chromium, builds, opens the QR login for your throwaway account, a
 | --- | --- |
 | `/rednote-gate:post_photos` | Claude writes a photo note from your photos and a one-line brief, and queues it |
 | `/rednote-gate:reply_to_comments` | Claude reads a note's comments, drafts up to 3 replies, and queues them |
+| `/rednote-gate:post_from_concept` | Claude researches a concept, writes an original note, renders text-card images, and queues it |
 | `/rednote-gate:research_topic` | Claude searches a topic, reads the top notes and comments, and summarises what works. Read only. |
 | `/rednote-gate:review_queue` | Claude summarises what is waiting and what happened |
 
@@ -35,6 +36,7 @@ Read tools run straight away:
 | `rednote_search` | `keyword`, `limit` (up to 30) | noteId, title, author, likes, url. The url carries an `xsec_token`. |
 | `rednote_get_note` | `url` | noteId, title, body, author, tags, likes, collects, comment count, ipLocation, time |
 | `rednote_get_comments` | `url`, `limit` (up to 50) | id, author, text, likes, reply count. First page only. |
+| `rednote_make_cards` | `cards` (1 to 9: title, up to 8 lines, footer), optional `theme` (`notebook`, `sticky`, `chalkboard`, `blueprint`) | renders 1080x1440 text-card PNGs on your computer and returns their paths. Never touches RedNote. |
 | `rednote_my_notes` | `limit` (up to 30) | your own notes, newest first: noteId, title, likes, url |
 | `rednote_queue_status` | `limit` | recent queue items: id, tool, status, last change. Never the approval link. |
 | `rednote_open_approval_page` | none | opens the approval page in your browser. Never returns the link. |
@@ -45,6 +47,7 @@ Write tools only add an item to the queue and return its queue id. They never to
 | --- | --- | --- |
 | `rednote_create_post` | `title` (RedNote's limit of 20: a CJK character counts 1, ASCII counts half), `body` (up to 1000 characters, emoji fine, no `#`), `images` (1 to 9 absolute paths to JPEG, PNG or WebP files; the first is the cover), optional `topics` (up to 5, without `#`) | publishes a photo note; each topic is added as a linked RedNote topic when the picker offers exactly that topic, otherwise as plain `#text` |
 | `rednote_create_draft` | same as `rednote_create_post` | saves a draft instead of publishing |
+| `rednote_create_video_post` | `title`, `body`, `video` (absolute path to one MP4 or MOV, up to 500 MB, a project limit), optional `topics` | publishes a video note once RedNote has processed it |
 | `rednote_post_comment` | `url`, `text` (up to 500 characters) | posts a comment on the note |
 | `rednote_like_note` | `url`, optional `noteTitle` | likes the note (own daily cap, see `RN_DAILY_LIKES`); refuses a note already liked |
 | `rednote_reply_comment` | `url`, `commentId`, `commentAuthor`, `commentText`, `text` (up to 500 characters) | replies to that comment |
@@ -338,6 +341,8 @@ RedNote's pages contain hidden decoy buttons that a person cannot see or click. 
 | Get note | `rednote_get_note` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | My notes | `rednote_my_notes` | verified headed 2026-10-06 (rednote.com) |
 | Topics and emoji in a post | `rednote_create_post` with `topics` | dry run verified 2026-10-06 (rednote.com): both topics became linked topics, emoji kept |
+| Video note | `rednote_create_video_post` | dry run verified 2026-10-06 (rednote.com): uploaded, processed, topic linked, 发布 found; no real video yet |
+| Text cards | `rednote_make_cards` | rendered locally, checked by eye 2026-10-06 (no RedNote involved) |
 | Like | `rednote_like_note` | dry run verified 2026-10-06 (rednote.com): button found, liked state read; no real like yet |
 | Get comments | `rednote_get_comments` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Create post | `rednote_create_post` | live verified 2026-10-06 (rednote.com): note published, listed by `rednote_my_notes` |
