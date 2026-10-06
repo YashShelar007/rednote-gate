@@ -29,9 +29,11 @@ Write tools only add an item to the queue and return its queue id. They never to
 | `rednote_post_comment` | `url`, `text` (up to 500 characters) | posts a comment on the note |
 | `rednote_reply_comment` | `url`, `commentId`, `commentAuthor`, `commentText`, `text` (up to 500 characters) | replies to that comment |
 
-For `rednote_reply_comment`, pass the id, author and text exactly as `rednote_get_comments` returned them. Before replying, the worker checks that the comment still exists and its text still matches.
+For `rednote_reply_comment`, pass the id, author and text exactly as `rednote_get_comments` returned them. Before replying, the worker reads the comment with that id from the page and checks that its author and text still match exactly. If not, it does not reply.
 
-Note URLs must look like `https://www.xiaohongshu.com/explore/<id>?xsec_token=...`. Take them from `rednote_search` results. Bare URLs without the token are refused, because RedNote answers them with a captcha. See [docs/friction.md](docs/friction.md).
+Titles, comments and replies must be a single line: a line break would be typed as Enter, which can send a comment early. The body of a note may have line breaks.
+
+Note URLs must look like `https://www.xiaohongshu.com/explore/<id>?xsec_token=...` (or `www.rednote.com` for overseas accounts). Take them from `rednote_search` results. Bare URLs without the token are refused, because RedNote answers them with a captcha. See [docs/friction.md](docs/friction.md).
 
 ## How the approval gate works
 
@@ -73,6 +75,8 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 - **What you approve is what posts.** Images are copied into the queue and hashed when queued. Only real JPEG, PNG or WebP files pass, checked by file signature. Each image can be at most 20 MB. A note takes 1 to 9 images. That is a project limit, not RedNote's.
 - **Daily budget.** At most `RN_DAILY_WRITES` live attempts (default 5) in any rolling 24 hours. Comments and replies also need `RN_COMMENT_GAP_MIN` minutes (default 10) since the last live comment or reply attempt. The budget is worked out from the ledger, so a restart does not reset it. Failed and unknown live attempts count. Dry runs do not. An approved item over budget waits. The approval page shows when the next slot opens.
 - **Undo window.** The worker waits 30 seconds after Approve. Until then, Cancel stops it.
+- **An approval is tied to its mode.** "Approve dry run" only ever runs as a dry run. If you restart in live mode, earlier dry-run approvals do not run; the page tells you to cancel and approve again.
+- **Read back before sending.** After typing, every field is read back. If a topic or mention picker, or anything else, changed the text, it stops before the final click.
 - **Crash safety.** The `attempt` line is written before the browser starts, so a crash still uses up budget. A live item cut off mid attempt becomes `unknown` and is never retried. A dry run cut off mid attempt becomes `failed`.
 - **Checked again before sending.** Image hashes are re-checked before upload. A reply only goes out if the target comment still exists and its text still matches what you approved.
 - **Halt on friction.** If RedNote shows a captcha or a "too frequent" warning, rednote-gate writes a `blocked` line to the ledger. It stops the worker and refuses read tools. Write tools can still queue, since queuing never touches the browser. It does not retry. The halt survives a restart. A human clicks Resume on the approval page to continue.
@@ -99,7 +103,9 @@ npm run build
 npm run login
 ```
 
-`npm run login` opens a visible browser at xiaohongshu.com. Scan the QR code with the throwaway account's phone. If the page shows you logged in but the terminal does not move on, press Enter there. It then visits creator.xiaohongshu.com to pick up the creator session; scan again if that site asks. It saves the session to `.session/state.json` with owner-only permissions (0600).
+`npm run login` opens a visible browser at xiaohongshu.com. Overseas accounts get sent to rednote.com: the login follows, reloads on rednote.com and asks you to scan the new QR code. It records which site your account uses in `.session/site`. Scan the QR code with the throwaway account's phone. If the page shows you logged in but the terminal does not move on, press Enter there. It then visits creator.xiaohongshu.com to pick up the creator session; scan again if that site asks. It saves the session to `.session/state.json` with owner-only permissions (0600).
+
+Quit your MCP client before running it: only one process may drive the browser.
 
 That file is a credential. It is git-ignored. rednote-gate never prints it. Never share it, commit it or copy it to a shared disk.
 
@@ -228,6 +234,7 @@ If a line is not valid JSON, writes stop until you fix or remove that line. A bu
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `RN_SITE` | from `npm run login` | `xiaohongshu.com` (mainland accounts) or `rednote.com` (overseas accounts) |
 | `RN_HEADLESS` | headed | `1` runs Chromium headless |
 | `RN_DRY_RUN` | `1` | `0` lets the worker click the final button on approved items |
 | `RN_DAILY_WRITES` | `5` | live attempts allowed in any rolling 24 hours |
@@ -237,6 +244,8 @@ If a line is not valid JSON, writes stop until you fix or remove that line. A bu
 | `RN_SESSION_PATH` | `<repo>/.session/state.json` | saved login session |
 | `RN_TYPE_MIN_MS` | `40` | shortest delay per typed character |
 | `RN_TYPE_MAX_MS` | `140` | longest delay per typed character |
+
+Limits and the port must be whole numbers. A typo stops the server with an error instead of turning a limit off.
 
 Set these in your MCP client's env block. `npm run login` and `npm run approve` read them from your shell. If you change `RN_DATA_DIR` or `RN_SESSION_PATH` in the client, export the same values before running those commands.
 
