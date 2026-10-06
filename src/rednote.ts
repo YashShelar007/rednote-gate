@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Page } from "playwright";
+import type { Locator, Page } from "playwright";
 import { hasCookie, newPage, saveSession, site } from "./session.js";
 import { BlockedError, NotSentError } from "./ledger.js";
 import type { CommentArgs, Item, PostArgs, ReplyArgs } from "./queue.js";
@@ -17,22 +17,29 @@ const SITE = () => `https://www.${site()}`;
 const CREATOR = () => `https://creator.${site()}`;
 const HOSTS = ["www.xiaohongshu.com", "www.rednote.com"];
 
+// RedNote plants hidden decoy copies of some buttons (aria-hidden, data-hp-kind; seen 2026-10-06 on
+// the creator page). A person can never click them. We act only on what a person can see and click.
+const SEEN = ':not([aria-hidden="true"]):not([data-hp-kind]):not([button-hp-installed])';
+const NOT_DECOY = ":not([data-hp-kind]):not([button-hp-installed])";
+
 export const SEL = {
-  loggedIn: ".main-container .user .link-wrapper .channel", // VERIFY
+  loggedIn: ".main-container .user .link-wrapper .channel", // verified 2026-10-06
   // creator publish page
-  imageTab: "div.creator-tab", // the tab whose text is exactly 上传图文 (VERIFY)
-  uploadInput: ".upload-input, input[type=file]", // VERIFY
+  imageTab: `div.creator-tab${SEEN}`, // the tab whose text is exactly 上传图文 (verified 2026-10-06)
+  uploadInput: `.upload-input${NOT_DECOY}, input[type=file]${NOT_DECOY}`, // VERIFY
   uploadedImage: ".img-preview-area .pr", // one per uploaded image (VERIFY)
-  postTitle: "div.d-input input", // VERIFY
-  postBody: 'div[role="textbox"][contenteditable="true"], div.tiptap[contenteditable="true"], div.ql-editor', // VERIFY
-  publishButton: 'xhs-publish-btn:not([is-publish="false"]), .publish-page-publish-btn button.bg-red', // VERIFY
-  saveDraftButton: "button:text-is('暂存离开')", // VERIFY: a guess, no reference project saves drafts
+  postTitle: `div.d-input input${SEEN}`, // VERIFY
+  postBody: `div[role="textbox"][contenteditable="true"]${SEEN}, div.tiptap[contenteditable="true"]${SEEN}, div.ql-editor${SEEN}`, // VERIFY
+  // One element with closed shadow DOM holds both final buttons: 暂存离开 left, 发布 right (2026-10-06).
+  publishBar: `xhs-publish-btn${SEEN}`, // verified present 2026-10-06; the click offsets below are VERIFY
+  publishButton: `.publish-page-publish-btn button.bg-red${SEEN}`, // older layout fallback (VERIFY)
+  saveDraftButton: `button:text-is('暂存离开')${SEEN}`, // older layout fallback (VERIFY)
   // note page
-  commentOpen: "div.input-box div.content-edit span", // VERIFY
-  commentInput: "div.input-box div.content-edit p.content-input", // VERIFY
-  commentSubmit: "div.bottom button.submit", // VERIFY
+  commentOpen: `div.input-box div.content-edit span${SEEN}`, // VERIFY
+  commentInput: `div.input-box div.content-edit p.content-input${SEEN}`, // VERIFY
+  commentSubmit: `div.bottom button.submit${SEEN}`, // VERIFY
   commentById: (id: string) => `#comment-${id}`, // VERIFY
-  replyButton: ".right .interactions .reply", // VERIFY
+  replyButton: `.right .interactions .reply${SEEN}`, // VERIFY
 };
 
 // Text RedNote shows on a captcha or rate-limit page. Seeing any of it stops everything.
@@ -274,15 +281,36 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
     await assertTyped(page, SEL.postTitle, a.title, true);
     await assertTyped(page, SEL.postBody, a.body);
     await assertNotBlocked(page);
+    // Find the final button even in a dry run, so a broken selector shows up before the first real post.
+    const { target, position } = await finalPublishButton(page, draft);
     if (dryRun) return;
-    const button = page.locator(draft ? SEL.saveDraftButton : SEL.publishButton).first();
-    await button.waitFor({ state: "visible", timeout: 10_000 });
     p.clicked = true;
-    await button.click();
+    await target.click(position ? { position } : {});
     if (draft) await page.waitForTimeout(rand(2500, 4000));
     else await page.waitForURL((u) => !u.pathname.includes("/publish/publish"), { timeout: 30_000 }); // success leaves the page
     await assertNotBlocked(page);
   }, screenshot);
+}
+
+/** The publish bar's buttons sit 72px either side of its centre (measured 2026-10-06). Its own
+ *  attributes name them, so check those first: if the layout changed, stop rather than click blind. */
+async function finalPublishButton(page: Page, draft: boolean): Promise<{ target: Locator; position?: { x: number; y: number } }> {
+  const bar = page.locator(SEL.publishBar).first();
+  if ((await bar.count()) === 0) {
+    const target = page.locator(draft ? SEL.saveDraftButton : SEL.publishButton).first();
+    await target.waitFor({ state: "visible", timeout: 10_000 });
+    return { target };
+  }
+  const [label, disabled, want] = draft ? ["save-text", "save-disabled", "暂存离开"] : ["submit-text", "submit-disabled", "发布"];
+  if ((await bar.getAttribute(label)) !== want) throw new Error(`The publish bar no longer has a "${want}" button. Not clicking.`);
+  for (const end = Date.now() + 20_000; (await bar.getAttribute(disabled)) !== "false"; ) {
+    if (Date.now() > end) throw new Error(`The "${want}" button stayed disabled.`);
+    await page.waitForTimeout(500);
+  }
+  await bar.scrollIntoViewIfNeeded();
+  const box = await bar.boundingBox();
+  if (!box) throw new Error("The publish bar is not on screen.");
+  return { target: bar, position: { x: box.width / 2 + (draft ? -72 : 72), y: box.height / 2 } };
 }
 
 function comment(a: CommentArgs, screenshot: string, dryRun: boolean, p: Progress) {
@@ -292,9 +320,11 @@ function comment(a: CommentArgs, screenshot: string, dryRun: boolean, p: Progres
     await page.locator(SEL.commentOpen).first().click({ timeout: 15_000 });
     await typeHuman(page, SEL.commentInput, a.text);
     await assertTyped(page, SEL.commentInput, a.text);
+    const send = page.locator(SEL.commentSubmit).first();
+    await send.waitFor({ state: "visible", timeout: 10_000 });
     if (dryRun) return;
     p.clicked = true;
-    await page.locator(SEL.commentSubmit).first().click();
+    await send.click();
     await page.waitForTimeout(rand(2000, 3500));
     await assertNotBlocked(page);
   }, screenshot);
@@ -318,9 +348,11 @@ function reply(a: ReplyArgs, screenshot: string, dryRun: boolean, p: Progress) {
     await target.locator(SEL.replyButton).first().click({ timeout: 10_000 });
     await typeHuman(page, SEL.commentInput, a.text);
     await assertTyped(page, SEL.commentInput, a.text);
+    const send = page.locator(SEL.commentSubmit).first();
+    await send.waitFor({ state: "visible", timeout: 10_000 });
     if (dryRun) return;
     p.clicked = true;
-    await page.locator(SEL.commentSubmit).first().click();
+    await send.click();
     await page.waitForTimeout(rand(2000, 3500));
     await assertNotBlocked(page);
   }, screenshot);

@@ -21,7 +21,7 @@ That installs Chromium, builds, opens the QR login for your throwaway account, a
 
 Or just ask in plain words ("post these two photos about my hike"). When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
 
-Status: the four read flows were checked against the live site on 2026-10-06 (rednote.com account, headed). The write flows have not been checked yet. See [Last verified against the live site](#last-verified-against-the-live-site).
+Status: the four read flows were checked against the live site on 2026-10-06 (rednote.com account, headed). The four write flows passed dry runs on the live site the same day; no real write has been made yet. See [Last verified against the live site](#last-verified-against-the-live-site).
 
 ## What it does
 
@@ -314,6 +314,8 @@ The owner decided on 2026-10-06 to keep these. They are listed here so nobody is
 
 There is no captcha solving. There is no fingerprint spoofing beyond the three items above.
 
+RedNote's pages contain hidden decoy buttons that a person cannot see or click. rednote-gate acts only on visible elements, the ones a person would click, and never forces a click. See [docs/friction.md](docs/friction.md).
+
 ## Last verified against the live site
 
 | Flow | Tool | Status as of 2026-10-06 |
@@ -322,10 +324,10 @@ There is no captcha solving. There is no fingerprint spoofing beyond the three i
 | Search | `rednote_search` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Get note | `rednote_get_note` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Get comments | `rednote_get_comments` | verified headed 2026-10-06 (rednote.com); headless not yet |
-| Create post | `rednote_create_post` | not yet verified |
-| Create draft | `rednote_create_draft` | not yet verified |
-| Post comment | `rednote_post_comment` | not yet verified |
-| Reply comment | `rednote_reply_comment` | not yet verified |
+| Create post | `rednote_create_post` | dry run verified headed 2026-10-06 (rednote.com); no real post yet |
+| Create draft | `rednote_create_draft` | dry run verified headed 2026-10-06 (rednote.com); no real draft yet |
+| Post comment | `rednote_post_comment` | dry run verified headed 2026-10-06 (rednote.com); no real comment yet |
+| Reply comment | `rednote_reply_comment` | dry run verified headed 2026-10-06 (rednote.com); no real reply yet |
 
 [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md) is how each row gets checked. Update this table with the date and result after each run.
 

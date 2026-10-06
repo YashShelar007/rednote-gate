@@ -37,3 +37,17 @@ Template:
 - What happened: RedNote redirected to `/login` and showed the QR login wall. `__INITIAL_STATE__.note.noteDetailMap` held only a placeholder keyed `"undefined"`. Firecrawl, fetching the same url from its servers, had been served the note.
 - Ledger line: none. Not a captcha, so no halt.
 - Effect on code or process: `open()` now recognises a redirect to `/login` and says "not logged in, run `npm run login`" instead of a misleading layout error. Note reads can only be verified after login.
+
+## 2026-10-06: hidden decoy buttons on the creator publish page
+
+- Where: `creator.rednote.com/publish/publish`, logged in
+- How observed: rednote-gate's own publish dry run
+- What happened: the page holds a second, hidden copy of the 上传图文 tab: `aria-hidden="true"`, `tabindex="-1"`, `data-hp-kind="creator-tab-上传图文"`, `button-hp-installed="1"`. The real tab sits on top of it. A selector that takes the first match picks the decoy. Playwright's click check refused to click it (the real tab intercepts the pointer), so the run timed out instead of clicking it.
+- Ledger line: none. Dry run, run directly while verifying selectors.
+- Effect on code: every clickable selector in `SEL` now excludes `aria-hidden` and `data-hp-*` elements. rednote-gate acts only on what a person can see and click, and never uses forced clicks.
+
+## 2026-10-06: the final buttons live in one closed shadow-DOM element
+
+- Where: the same page, after an image upload
+- What happened: 暂存离开 and 发布 are both inside one `<xhs-publish-btn>` element with closed shadow DOM. Its attributes name the buttons (`submit-text="发布"`, `save-text="暂存离开"`, `submit-disabled`, `save-disabled`). The element's centre falls in the gap between the two buttons.
+- Effect on code: rednote-gate checks those attributes, then clicks 72px left (暂存离开) or right (发布) of the centre. If the labels change, it stops instead of clicking.
