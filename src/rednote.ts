@@ -71,7 +71,10 @@ export function titleLength(s: string): number {
 // Concurrency 1: every browser action waits for the previous one to finish.
 let chain: Promise<unknown> = Promise.resolve();
 let inFlight = 0;
+let lastUsed = 0;
 let guard = () => {};
+/** When the last browser action finished. */
+export const lastActive = () => lastUsed;
 /** True when no browser action is running or waiting. The worker only starts a write then. */
 export const browserIdle = () => inFlight === 0;
 /** Runs inside the lock, right before each action, so a halt written meanwhile still stops it. */
@@ -85,7 +88,10 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
     return fn();
   };
   const run = chain.then(task, task);
-  chain = run.catch(() => {}).finally(() => inFlight--);
+  chain = run.catch(() => {}).finally(() => {
+    inFlight--;
+    lastUsed = Date.now();
+  });
   return run;
 }
 

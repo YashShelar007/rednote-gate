@@ -19,7 +19,7 @@ That installs Chromium, builds, opens the QR login for your throwaway account, a
 | `/rednote-gate:research_topic` | Claude searches a topic, reads the top notes and comments, and summarises what works. Read only. |
 | `/rednote-gate:review_queue` | Claude summarises what is waiting and what happened |
 
-Or just ask in plain words ("post these two photos about my hike"). When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
+Or just ask in plain words ("post these two photos about my hike"). The first time you use a rednote tool, a small background service starts. It owns the browser, the approval page and the worker, and it keeps running after you close Claude Code, so the approval page always works and approved items always run. It closes the browser window after 5 idle minutes. Stop it with `npm run stop`. When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
 
 Status: the four read flows were checked against the live site on 2026-10-06 (rednote.com account, headed). The four write flows passed dry runs on the live site the same day; no real write has been made yet. See [Last verified against the live site](#last-verified-against-the-live-site).
 
@@ -99,7 +99,7 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 - **Checked again before sending.** Image hashes are re-checked before upload. A reply only goes out if the target comment still exists and its text still matches what you approved.
 - **Halt on friction.** If RedNote shows a captcha or a "too frequent" warning, rednote-gate writes a `blocked` line to the ledger. It stops the worker and refuses read tools. Write tools can still queue, since queuing never touches the browser. It does not retry. The halt survives a restart. A human clicks Resume on the approval page to continue.
 - **No bare note URLs.** URLs without `xsec_token` are refused before the browser opens.
-- **One browser owner.** A lock file in `data/` lets only one process use the browser. If a second MCP client starts another copy, that copy can queue writes and show status, but refuses browser tools.
+- **One browser owner.** Only the service drives the browser, guarded by a lock file in `data/`. Every MCP client (Claude Code, Claude Desktop, Codex, several sessions at once) talks to that one service, so there is never a second browser on the account.
 - **Dry run by default.** `RN_DRY_RUN` is `1` unless you set it to `0`.
 
 ## Terms of service warning
@@ -221,7 +221,8 @@ All data lives in `data/` at the repo root. `RN_DATA_DIR` moves it. Everything i
 | `data/ledger.jsonl` | the ledger |
 | `data/screenshots/<id>.png` | screenshot of the attempt |
 | `data/approval-url` | the approval link (0600) |
-| `data/lock` | which process owns the browser |
+| `data/lock` | the service's process id; only the service drives the browser |
+| `data/service.log` | the service's log |
 
 A queue item:
 
@@ -297,7 +298,7 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 ## Known limits
 
 - **A browser agent could approve.** An agent with its own browser tool on the same machine could open the approval page and click Approve. Never load a browser MCP in the same client session. The same goes for any process running as your user: it can read `data/approval-url`. The gate stops the model acting through rednote-gate's tools. It cannot stop other software you run.
-- **Posting needs the client running.** The worker lives inside the server process. Approved items only post while your MCP client runs the server.
+- **The service keeps running.** It starts on first use and stays up until `npm run stop` or a reboot. After changing settings or updating the code, run `npm run stop`; the next tool call starts it fresh. Its log is `data/service.log`.
 - **Selectors drift.** RedNote changes its pages. The selectors live in the `SEL` object in `src/rednote.ts`. Fix them there. Record the evidence in the capture block in [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md) and in [docs/friction.md](docs/friction.md).
 - **Unknown blocks a re-queue.** An `unknown` item blocks an identical write. If you check by hand and it did not post, change the text before queuing it again.
 - **Comments are first page only.**

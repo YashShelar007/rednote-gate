@@ -53,6 +53,9 @@ export function getContext(): Promise<BrowserContext> {
   return context;
 }
 
+/** True while a browser is running. The service closes it after a few idle minutes. */
+export const browserOpen = () => context !== null;
+
 export async function newPage(): Promise<Page> {
   return (await getContext()).newPage();
 }

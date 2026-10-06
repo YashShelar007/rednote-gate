@@ -11,7 +11,7 @@ async function main() {
   }
   const lock = acquireLock(DATA_DIR);
   if (!lock.ok) {
-    console.error(`rednote-gate is running (pid ${lock.pid}). Quit your MCP client first, then run login again.`);
+    console.error(`The rednote-gate service is running (pid ${lock.pid}). Run "npm run stop" first, then run login again.`);
     process.exit(1);
   }
   let presses = 0;

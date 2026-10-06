@@ -20,10 +20,12 @@ rednote-gate is a local MCP server for ONE throwaway RedNote account. Reads run 
 
 | Path | What it is |
 | --- | --- |
-| `src/index.ts` | MCP stdio entry point. Registers the tools and starts the worker and the approval page. |
+| `src/index.ts` | MCP stdio entry point, kept thin. Registers the tools and workflow prompts. Writes go to the queue; reads go to the service, which it starts if needed. |
 | `src/queue.ts` | The queue. One JSON file per write. Image checks, copying and hashing. Status changes. Duplicate check. |
 | `src/ledger.ts` | Append-only `ledger.jsonl`. Budget and halt state are worked out from it. |
 | `src/worker.ts` | Takes the oldest approved item that fits the budget. Writes the ledger lines around each attempt. |
+| `src/service.ts` | The long-running service: owns the lock, the browser, the approval page, the worker and notifications. Started on demand by `index.ts`; `npm run stop` stops it. |
+| `src/config.ts` | Paths, limits and mode, read once from the environment. Shared by `index.ts` and `service.ts`. |
 | `src/approval.ts` | The approval page on 127.0.0.1. Token, Host and origin checks. Approve, Reject, Cancel, Resume. |
 | `src/rednote.ts` | The browser flows and the `SEL` selectors. The only file that knows RedNote's pages. |
 | `src/session.ts` | Playwright browser and the saved login session. |

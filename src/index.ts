@@ -1,94 +1,87 @@
-// MCP stdio server. Reads run directly. Write tools only queue; a human approves each item on
-// the localhost page, and the worker in this same process posts it inside the budget.
+// MCP stdio server: a thin layer. Write tools only add files to the queue. Reads go to the
+// rednote-gate service (service.ts), which owns the browser, the approval page and the worker,
+// and keeps running after this process exits. This process starts the service when needed.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { randomBytes } from "node:crypto";
-import { execFile } from "node:child_process";
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { mkdirSync, openSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import * as rn from "./rednote.js";
-import { DATA_DIR, acquireLock, close } from "./session.js";
-import { enqueue, listItems, recoverInterrupted, type Args, type Tool } from "./queue.js";
-import { BlockedError, appendLedger, haltReason, readLedger, type Limits } from "./ledger.js";
-import { startWorker } from "./worker.js";
-import { startApproval } from "./approval.js";
+import { enqueue, listItems, type Args, type Tool } from "./queue.js";
+import { DATA, QUEUE, URL_FILE, notify } from "./config.js";
 
-const DATA = DATA_DIR;
-const QUEUE = join(DATA, "queue");
-const LEDGER = join(DATA, "ledger.jsonl");
-const SHOTS = join(DATA, "screenshots");
-const DRY_RUN = process.env.RN_DRY_RUN !== "0";
-/** A typo in a limit must stop the server, never mean "no limit". */
-function whole(name: string, fallback: number): number {
-  const raw = process.env[name] ?? String(fallback);
-  const n = Number(raw);
-  if (raw.trim() === "" || !Number.isInteger(n) || n < 0) throw new Error(`${name} must be a whole number, 0 or more. Got "${raw}".`);
-  return n;
+const SERVICE = fileURLToPath(new URL("./service.js", import.meta.url));
+mkdirSync(QUEUE, { recursive: true });
+
+const text = (data: unknown) => ({ content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
+
+type Service = { url: URL; token: string; dryRun: boolean };
+async function probe(): Promise<Service | null> {
+  try {
+    const url = new URL(readFileSync(URL_FILE, "utf8").trim());
+    const token = url.searchParams.get("t") ?? "";
+    const r = await fetch(new URL(`/health?t=${token}`, url), { signal: AbortSignal.timeout(2_000) });
+    return r.ok ? { url, token, dryRun: ((await r.json()) as { dryRun: boolean }).dryRun } : null;
+  } catch {
+    return null;
+  }
 }
-const PORT = whole("RN_APPROVAL_PORT", 7317);
-const LIMITS: Limits = { daily: whole("RN_DAILY_WRITES", 5), commentGapMin: whole("RN_COMMENT_GAP_MIN", 10) };
-const log = (msg: string) => console.error(`[rednote-gate] ${msg}`);
 
-/** A Mac notification. Fixed wording only: never note text or secrets. RN_NOTIFY=0 turns it off. */
-function notify(message: string) {
-  if (process.env.RN_NOTIFY === "0" || process.platform !== "darwin") return;
-  execFile("osascript", ["-e", `display notification ${JSON.stringify(message)} with title "rednote-gate"`], () => {});
+/** Finds the running service, or starts it detached so it outlives this MCP session. */
+let starting: Promise<Service> | null = null;
+async function service(): Promise<Service> {
+  const up = await probe();
+  if (up) return up;
+  starting ??= (async () => {
+    const out = openSync(join(DATA, "service.log"), "a");
+    spawn(process.execPath, [SERVICE], { detached: true, stdio: ["ignore", out, out], env: process.env }).unref();
+    for (const end = Date.now() + 20_000; Date.now() < end; ) {
+      await new Promise((r) => setTimeout(r, 500));
+      const s = await probe();
+      if (s) return s;
+    }
+    throw new Error("Could not start the rednote-gate service. See data/service.log in the rednote-gate folder.");
+  })().finally(() => (starting = null));
+  return starting;
+}
+
+async function read(tool: string, args: object = {}) {
+  const s = await service();
+  const r = await fetch(new URL("/api/read", s.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-rednote-gate-token": s.token },
+    body: JSON.stringify({ tool, args }),
+  });
+  const j = (await r.json()) as { ok: boolean; result?: unknown; error?: string };
+  if (!j.ok) throw new Error(j.error);
+  return text(j.result);
 }
 
 /** Opens the approval page in the default browser, at most once a minute. The link carries the
  *  token, so it goes to the OS opener, never into a tool result. RN_OPEN_APPROVAL=0 turns it off. */
 let lastOpened = 0;
-function openApproval(force = false): boolean {
+function openApproval(s: Service, force = false): boolean {
   if (process.env.RN_OPEN_APPROVAL === "0" || (!force && Date.now() - lastOpened < 60_000)) return false;
-  let url: string;
-  try {
-    url = readFileSync(join(DATA, "approval-url"), "utf8").trim();
-  } catch {
-    return false;
-  }
   lastOpened = Date.now();
+  const url = s.url.toString();
   const [cmd, args] = process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
   execFile(cmd, args as string[], () => {});
   return true;
 }
 
-mkdirSync(QUEUE, { recursive: true });
-const lock = acquireLock(DATA);
-rn.setGuard(() => {
-  const halt = haltReason(readLedger(LEDGER));
-  if (halt) throw new Error(`Stopped after RedNote showed: ${halt}. A human must check the account and press Resume on the approval page.`);
-});
-
-const text = (data: unknown) => ({ content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
-
-/** Every browser read goes through here: one owner process, no reads while halted, stop on a block. */
-async function read<T>(fn: () => Promise<T>) {
-  if (!lock.ok) throw new Error(`Another rednote-gate process (pid ${lock.pid}) owns the browser. Close the other MCP client first.`);
-  const halt = haltReason(readLedger(LEDGER));
-  if (halt) throw new Error(`Stopped after RedNote showed: ${halt}. A human must check the account and press Resume on the approval page.`);
-  try {
-    return text(await fn());
-  } catch (e) {
-    if (e instanceof BlockedError) {
-      appendLedger(LEDGER, { at: new Date().toISOString(), event: "blocked", detail: e.message });
-      notify("Stopped: RedNote showed a captcha or a warning. Check the account, then press Resume.");
-      throw new Error(`${e.message}. Stopped; not retrying. Check the account in the app, then press Resume on the approval page.`);
-    }
-    throw e;
-  }
-}
-
-function queue(tool: Tool, args: Args) {
+async function queue(tool: Tool, args: Args) {
   const { item, duplicate } = enqueue(QUEUE, tool, args);
+  const s = await service(); // the page and the worker live there
   const waiting = item.status === "pending";
-  const opened = waiting && openApproval();
-  const where = opened ? "The approval page has opened in the user's browser." : "The approval page is at `npm run approve` in the rednote-gate folder.";
+  const opened = waiting && openApproval(s);
+  const where = opened ? "The approval page has opened in the user's browser." : "The user can open the approval page with rednote_open_approval_page.";
   if (duplicate) return text(`Already queued as ${item.id} (status: ${item.status}). Not queued again.${waiting ? ` ${where}` : ""}`);
   notify("New item waiting for your approval.");
   return text(
     `Queued as ${item.id}. Nothing has been sent to RedNote. The user must approve it. ${where} ` +
-      `Mode: ${DRY_RUN ? "dry run, so approval fills the form but never publishes" : "live"}. Do not say it was posted; check rednote_queue_status later.`,
+      `Mode: ${s.dryRun ? "dry run, so approval fills the form but never publishes" : "live"}. Do not say it was posted; check rednote_queue_status later.`,
   );
 }
 
@@ -104,17 +97,17 @@ const post = {
 
 const server = new McpServer({ name: "rednote-gate", version: "0.1.0" });
 
-server.registerTool("rednote_login_status", { description: "Check whether the saved RedNote session is logged in (main site and creator site). Read only." }, () => read(() => rn.loginStatus()));
+server.registerTool("rednote_login_status", { description: "Check whether the saved RedNote session is logged in (main site and creator site). Read only." }, () => read("login_status"));
 server.registerTool(
   "rednote_search",
   { description: "Search RedNote notes by keyword. Read only. Returns note urls that carry the xsec_token other tools need.", inputSchema: { keyword: z.string().min(1), limit: z.number().int().positive().max(30).optional() } },
-  ({ keyword, limit }) => read(() => rn.search(keyword, limit ?? 10)),
+  ({ keyword, limit }) => read("search", { keyword, limit }),
 );
-server.registerTool("rednote_get_note", { description: "Read one note: title, body, author, tags, counts. Read only.", inputSchema: { url: noteUrl } }, ({ url }) => read(() => rn.getNote(url)));
+server.registerTool("rednote_get_note", { description: "Read one note: title, body, author, tags, counts. Read only.", inputSchema: { url: noteUrl } }, ({ url }) => read("get_note", { url }));
 server.registerTool(
   "rednote_get_comments",
   { description: "Read the first page of comments on a note: id, author, text. Read only. Use these values for rednote_reply_comment.", inputSchema: { url: noteUrl, limit: z.number().int().positive().max(50).optional() } },
-  ({ url, limit }) => read(() => rn.getComments(url, limit ?? 20)),
+  ({ url, limit }) => read("get_comments", { url, limit }),
 );
 server.registerTool(
   "rednote_create_post",
@@ -142,7 +135,7 @@ server.registerTool(
 server.registerTool(
   "rednote_open_approval_page",
   { description: "Open the approval page in the user's browser so they can approve or reject queued writes. Returns no link." },
-  () => text(openApproval(true) ? "Opened the approval page in the user's browser." : "Could not open it. The user can run `npm run approve` in the rednote-gate folder."),
+  async () => text(openApproval(await service(), true) ? "Opened the approval page in the user's browser." : "Could not open it. The user can run `npm run approve` in the rednote-gate folder."),
 );
 server.registerTool(
   "rednote_queue_status",
@@ -218,42 +211,8 @@ server.registerPrompt(
 );
 
 async function main() {
-  let stopWorker = () => {};
-  if (lock.ok) {
-    for (const i of recoverInterrupted(QUEUE)) {
-      appendLedger(LEDGER, { at: new Date().toISOString(), event: "result", id: i.id, tool: i.tool, outcome: i.status, detail: i.history.at(-1)?.note });
-      log(`${i.id} was cut off mid-attempt; marked ${i.status}.`);
-    }
-    const token = randomBytes(24).toString("hex");
-    const { port } = await startApproval({ dir: QUEUE, ledger: LEDGER, shots: SHOTS, token, port: PORT, limits: LIMITS, dryRun: DRY_RUN });
-    const urlFile = join(DATA, "approval-url");
-    writeFileSync(urlFile, `http://127.0.0.1:${port}/?t=${token}\n`, { mode: 0o600 });
-    chmodSync(urlFile, 0o600);
-    const SAY: Partial<Record<string, string>> = {
-      posted: "Done. It went out. The screenshot is on the approval page.",
-      dry_run: "Dry run finished. Nothing was published. The screenshot is on the approval page.",
-      failed: "A write stopped before sending. Nothing was posted. Details on the approval page.",
-      unknown: "A write may or may not have gone out. Check the RedNote app.",
-    };
-    const onOutcome = (outcome: string) => {
-      if (haltReason(readLedger(LEDGER))) notify("Stopped: RedNote showed a captcha or a warning. Check the account, then press Resume.");
-      else if (SAY[outcome]) notify(SAY[outcome]!);
-    };
-    const run = (item: Parameters<typeof rn.runWrite>[0], shot: string, dry: boolean) => rn.runWrite(item, QUEUE, shot, dry);
-    stopWorker = startWorker({ dir: QUEUE, ledger: LEDGER, shots: SHOTS, limits: LIMITS, dryRun: DRY_RUN, idle: rn.browserIdle, run }, 10_000, onOutcome);
-    log(`approval page on 127.0.0.1:${port} (run \`npm run approve\` for the link). Mode: ${DRY_RUN ? "dry run" : "LIVE"}.`);
-  } else {
-    log(`another process (pid ${lock.pid}) owns the browser. This copy can queue writes and show status only.`);
-  }
   await server.connect(new StdioServerTransport());
-  const shutdown = async () => {
-    stopWorker();
-    await close();
-    process.exit(0);
-  };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
-  process.stdin.on("close", shutdown); // the MCP client went away
+  process.stdin.on("close", () => process.exit(0)); // the MCP client went away; the service stays up
 }
 
 main().catch((e) => {

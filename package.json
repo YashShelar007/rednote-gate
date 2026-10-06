@@ -13,6 +13,8 @@
     "setup": "npm install && npx playwright install chromium && npm run build && npm run login && npm run connect",
     "build": "tsc",
     "start": "node dist/index.js",
+    "service": "node dist/service.js",
+    "stop": "node -e \"const fs=require('fs'),f=require('path').join(process.env.RN_DATA_DIR||'data','lock');try{const pid=+fs.readFileSync(f,'utf8');process.kill(pid,'SIGTERM');console.log('Stopped the rednote-gate service (pid '+pid+').')}catch{console.log('The rednote-gate service is not running.')}\"",
     "login": "node dist/login.js",
     "connect": "command -v claude >/dev/null || { echo 'Claude Code CLI not found. Add the server by hand: see README.'; exit 0; }; claude mcp get rednote-gate >/dev/null 2>&1 && echo 'rednote-gate is already connected to Claude Code.' || claude mcp add --scope user rednote-gate -- node \"$PWD/dist/index.js\"",
     "approve": "node -e \"const f=require('path').join(process.env.RN_DATA_DIR||'data','approval-url');try{console.log(require('fs').readFileSync(f,'utf8'))}catch{console.error('No approval page running. Start the MCP server first.');process.exit(1)}\"",

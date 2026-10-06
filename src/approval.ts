@@ -17,6 +17,8 @@ export interface ApprovalOptions {
   port: number; // 0 picks a free port (tests)
   limits: Limits;
   dryRun: boolean;
+  /** Read tools the MCP server calls over 127.0.0.1 with the token in a header. */
+  reads?: Record<string, (args: never) => Promise<unknown>>;
 }
 
 const ACTIONS: Record<string, { from: Status; to: Status }> = {
@@ -43,14 +45,14 @@ function sameToken(given: string | null, token: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-function readBody(req: IncomingMessage): Promise<URLSearchParams> {
+function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = "";
     req.on("data", (c) => {
       data += c;
       if (data.length > 10_000) req.destroy(new Error("body too large"));
     });
-    req.on("end", () => resolve(new URLSearchParams(data)));
+    req.on("end", () => resolve(data));
     req.on("error", reject);
   });
 }
@@ -164,6 +166,7 @@ async function handle(o: ApprovalOptions, port: number, req: IncomingMessage, re
   if (req.method === "GET") {
     if (!sameToken(url.searchParams.get("t"), o.token)) return send(403, "Missing or wrong token. Run `npm run approve` for the link.");
     if (url.pathname === "/") return send(200, page(o), "text/html; charset=utf-8");
+    if (url.pathname === "/health") return send(200, JSON.stringify({ ok: true, dryRun: o.dryRun }), "application/json");
     const shot = url.pathname.match(/^\/shot\/([^/]+)$/);
     if (shot && o.shots) {
       try {
@@ -186,10 +189,26 @@ async function handle(o: ApprovalOptions, port: number, req: IncomingMessage, re
   }
 
   if (req.method !== "POST") return send(405, "Method not allowed.");
+
+  // The read API is for the MCP server, never for a web page: browsers always send Origin on a
+  // POST, and the custom token header forces a CORS preflight that this server never approves.
+  if (url.pathname === "/api/read") {
+    if (req.headers.origin || !sameToken(String(req.headers["x-rednote-gate-token"] ?? ""), o.token)) return send(403, "Forbidden.");
+    const { tool, args } = JSON.parse(await readBody(req)) as { tool: string; args: never };
+    const fn = Object.hasOwn(o.reads ?? {}, tool) ? o.reads![tool] : undefined;
+    const json = (body: unknown) => send(200, JSON.stringify(body), "application/json");
+    if (!fn) return json({ ok: false, error: `No read tool called ${tool}.` });
+    try {
+      return json({ ok: true, result: await fn(args ?? ({} as never)) });
+    } catch (e) {
+      return json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   // Same-origin only. Browsers that send "Origin: null" still mark their own requests same-origin.
   const sameOrigin = req.headers.origin === `http://${host}` || req.headers["sec-fetch-site"] === "same-origin";
   if (!sameOrigin) return send(403, "Cross-origin request refused.");
-  const form = await readBody(req);
+  const form = new URLSearchParams(await readBody(req));
   if (!sameToken(form.get("t"), o.token)) return send(403, "Missing or wrong token.");
   const back = { Location: `/?t=${o.token}` };
   if (url.pathname === "/resume") {

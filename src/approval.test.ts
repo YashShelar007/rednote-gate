@@ -11,9 +11,9 @@ import { startApproval } from "./approval.js";
 const TOKEN = "a".repeat(48);
 type Res = { status: number; body: string; headers: Record<string, unknown> };
 
-async function setup() {
+async function setup(extra: Partial<Parameters<typeof startApproval>[0]> = {}) {
   const root = mkdtempSync(join(tmpdir(), "rng-approval-"));
-  const o = { dir: join(root, "queue"), ledger: join(root, "ledger.jsonl"), token: TOKEN, port: 0, limits: { daily: 5, commentGapMin: 10 }, dryRun: true };
+  const o = { dir: join(root, "queue"), ledger: join(root, "ledger.jsonl"), token: TOKEN, port: 0, limits: { daily: 5, commentGapMin: 10 }, dryRun: true, ...extra };
   const { server, port } = await startApproval(o);
   const call = (method: string, path: string, headers: Record<string, string> = {}, body = ""): Promise<Res> =>
     new Promise((resolve, reject) => {
@@ -29,6 +29,28 @@ async function setup() {
     call("POST", "/decide", { origin, "content-type": "application/x-www-form-urlencoded" }, new URLSearchParams(fields).toString());
   return { ...o, port, call, form, close: () => server.close() };
 }
+
+test("health needs the token and reports the mode", async () => {
+  const s = await setup();
+  assert.equal((await s.call("GET", "/health")).status, 403);
+  const ok = await s.call("GET", `/health?t=${TOKEN}`);
+  assert.equal(ok.status, 200);
+  assert.deepEqual(JSON.parse(ok.body), { ok: true, dryRun: true });
+  s.close();
+});
+
+test("the read API answers only token-carrying non-browser callers", async () => {
+  const s = await setup({ reads: { echo: async (a: unknown) => ({ got: a }) } });
+  const json = { "content-type": "application/json" };
+  const body = JSON.stringify({ tool: "echo", args: { x: 1 } });
+  assert.equal((await s.call("POST", "/api/read", json, body)).status, 403, "no token");
+  assert.equal((await s.call("POST", "/api/read", { ...json, "x-rednote-gate-token": TOKEN, origin: `http://127.0.0.1:${s.port}` }, body)).status, 403, "a browser page may not use it");
+  const ok = await s.call("POST", "/api/read", { ...json, "x-rednote-gate-token": TOKEN }, body);
+  assert.deepEqual(JSON.parse(ok.body), { ok: true, result: { got: { x: 1 } } });
+  const unknown = await s.call("POST", "/api/read", { ...json, "x-rednote-gate-token": TOKEN }, JSON.stringify({ tool: "create_post", args: {} }));
+  assert.equal(JSON.parse(unknown.body).ok, false, "only the read tools exist here");
+  s.close();
+});
 
 test("the page refuses requests without the token", async () => {
   const s = await setup();
