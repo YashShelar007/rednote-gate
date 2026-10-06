@@ -165,11 +165,20 @@ async function readState<T>(page: Page, path: string[], ready: (v: T | undefined
 
 // ─── Reads ──────────────────────────────────────────────────────────────────────────────────
 
+/** The creator site is logged in when it keeps us on its page instead of sending us to /login.
+ *  xiaohongshu.com also sets galaxy_creator_session_id; rednote.com has no such cookie. */
+export async function creatorLoggedIn(page: Page): Promise<boolean> {
+  const u = new URL(page.url());
+  return (await hasCookie("galaxy_creator_session_id")) || (u.hostname.startsWith("creator.") && !pageProblem(page.url()));
+}
+
 export function loginStatus() {
   return withPage(async (page) => {
     await open(page, `${SITE()}/explore`);
     const loggedIn = await page.locator(SEL.loggedIn).first().isVisible({ timeout: 5_000 }).catch(() => false);
-    return { loggedIn, creatorSession: await hasCookie("galaxy_creator_session_id") };
+    await page.goto(`${CREATOR()}/publish/publish?source=official`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.waitForTimeout(rand(2500, 3500)); // the redirect to /login, if any, happens after load
+    return { site: site(), loggedIn, creatorSession: await creatorLoggedIn(page) };
   });
 }
 

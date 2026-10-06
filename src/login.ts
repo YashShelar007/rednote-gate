@@ -1,9 +1,7 @@
 // One-time interactive login: `npm run login`. Scan the QR with the THROWAWAY account's phone.
 // Saves .session/state.json (owner-only) and which site the account uses. Never prints secrets.
-import { DATA_DIR, acquireLock, close, hasCookie, newPage, saveSession, saveSite, type Site } from "./session.js";
-import { isLoggedIn } from "./rednote.js";
-
-const CREATOR_COOKIE = "galaxy_creator_session_id";
+import { DATA_DIR, acquireLock, close, newPage, saveSession, saveSite, type Site } from "./session.js";
+import { creatorLoggedIn, isLoggedIn } from "./rednote.js";
 const siteOf = (url: string): Site => (new URL(url).hostname.endsWith("rednote.com") ? "rednote.com" : "xiaohongshu.com");
 
 async function main() {
@@ -45,12 +43,13 @@ async function main() {
   const s = siteOf(page.url());
   saveSite(s);
   console.error(`Logged in on ${s}. Opening the creator site to pick up its session. If it asks you to log in, scan again.`);
-  await page.goto(`https://creator.${s}/?source=official`, { waitUntil: "domcontentloaded" });
+  await page.goto(`https://creator.${s}/publish/publish?source=official`, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(3000); // a logged-out creator site redirects to /login after load
   const before = presses;
-  for (const end = Date.now() + 120_000; Date.now() < end && presses === before && !(await hasCookie(CREATOR_COOKIE)); ) {
+  for (const end = Date.now() + 120_000; Date.now() < end && presses === before && !(await creatorLoggedIn(page)); ) {
     await page.waitForTimeout(2000);
   }
-  const creator = await hasCookie(CREATOR_COOKIE);
+  const creator = await creatorLoggedIn(page);
   await saveSession();
   console.error(creator ? "Saved. You can close this window." : "Saved, but the creator site is not logged in, so publishing will fail. Run `npm run login` again.");
   await close();

@@ -14,7 +14,7 @@ Read tools run straight away:
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
-| `rednote_login_status` | none | `loggedIn` (main site) and `creatorSession` (creator site, needed to publish) |
+| `rednote_login_status` | none | `site`, `loggedIn` (main site) and `creatorSession` (creator site, needed to publish) |
 | `rednote_search` | `keyword`, `limit` (up to 30) | noteId, title, author, likes, url. The url carries an `xsec_token`. |
 | `rednote_get_note` | `url` | noteId, title, body, author, tags, likes, collects, comment count, ipLocation, time |
 | `rednote_get_comments` | `url`, `limit` (up to 50) | id, author, text, likes, reply count. First page only. |
