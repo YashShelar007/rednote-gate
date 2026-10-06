@@ -337,6 +337,8 @@ RedNote's pages contain hidden decoy buttons that a person cannot see or click. 
 | Search | `rednote_search` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Get note | `rednote_get_note` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | My notes | `rednote_my_notes` | verified headed 2026-10-06 (rednote.com) |
+| Topics and emoji in a post | `rednote_create_post` with `topics` | dry run verified 2026-10-06 (rednote.com): both topics became linked topics, emoji kept |
+| Like | `rednote_like_note` | dry run verified 2026-10-06 (rednote.com): button found, liked state read; no real like yet |
 | Get comments | `rednote_get_comments` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Create post | `rednote_create_post` | live verified 2026-10-06 (rednote.com): note published, listed by `rednote_my_notes` |
 | Create draft | `rednote_create_draft` | live verified 2026-10-06 (rednote.com): saved, but only in rednote-gate's browser (see Known limits) |

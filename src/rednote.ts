@@ -347,11 +347,18 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
 async function addTopic(page: Page, topic: string) {
   await page.locator(SEL.postBody).first().focus();
   await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
-  for (const ch of ` #${topic}`) await page.keyboard.type(ch, { delay: rand(TYPE_MIN, TYPE_MAX) });
+  // The picker needs a beat after "#" and after a previous topic, or typed characters get lost.
+  await page.keyboard.type(" ");
+  await page.waitForTimeout(rand(300, 500));
+  await page.keyboard.type("#");
+  await page.waitForTimeout(rand(500, 800));
+  for (const ch of topic) await page.keyboard.type(ch, { delay: rand(TYPE_MIN, TYPE_MAX) });
   const exact = page.locator(SEL.topicSuggestion).filter({ hasText: new RegExp(`^\\s*#?${topic.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`, "u") }).first();
-  if (await exact.isVisible({ timeout: 3_000 }).catch(() => false)) await exact.click();
+  // The list loads for 1 to 2 seconds. isVisible() does not wait, so wait explicitly.
+  const offered = await exact.waitFor({ state: "visible", timeout: 6_000 }).then(() => true, () => false);
+  if (offered) await exact.click();
   else await page.keyboard.type(" ");
-  await page.waitForTimeout(rand(400, 800));
+  await page.waitForTimeout(rand(900, 1300)); // let the picker close before the next topic
 }
 
 /** The publish bar's buttons sit 72px either side of its centre (measured 2026-10-06). Its own

@@ -51,3 +51,9 @@ Template:
 - Where: the same page, after an image upload
 - What happened: 暂存离开 and 发布 are both inside one `<xhs-publish-btn>` element with closed shadow DOM. Its attributes name the buttons (`submit-text="发布"`, `save-text="暂存离开"`, `submit-disabled`, `save-disabled`). The element's centre falls in the gap between the two buttons.
 - Effect on code: rednote-gate checks those attributes, then clicks 72px left (暂存离开) or right (发布) of the centre. If the labels change, it stops instead of clicking.
+
+## 2026-10-06: the topic picker needs time
+
+- Where: the creator publish page body, rednote.com account
+- What happened: typing `#name` opens a picker that loads for 1 to 2 seconds, then offers `#name 新建话题` (on this overseas account, only that entry, even for common topics). Clicking it turns the text into a linked topic (`#name[话题]#` in the editor). Typing the next `#` while the previous picker was still closing lost characters: `#自习` became `习`.
+- Effect on code: rednote-gate waits for the exact entry (up to 6 seconds), pauses after `#` and between topics, and the body read-back refused the mangled text before any click.
