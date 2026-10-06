@@ -5,14 +5,15 @@ import { createHash, randomBytes } from "node:crypto";
 import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { extname, isAbsolute, join } from "node:path";
 
-export type Tool = "create_post" | "create_draft" | "post_comment" | "reply_comment";
+export type Tool = "create_post" | "create_draft" | "post_comment" | "reply_comment" | "like_note";
 export type Status = "pending" | "approved" | "rejected" | "posting" | "posted" | "dry_run" | "failed" | "unknown";
 
 /** images are paths relative to the queue folder, e.g. "q_20261006T120000_ab12/0.png". */
-export type PostArgs = { title: string; body: string; images: string[] };
+export type PostArgs = { title: string; body: string; images: string[]; topics?: string[] };
 export type CommentArgs = { noteUrl: string; text: string };
 export type ReplyArgs = { noteUrl: string; commentId: string; commentAuthor: string; commentText: string; text: string };
-export type Args = PostArgs | CommentArgs | ReplyArgs;
+export type LikeArgs = { noteUrl: string; noteTitle?: string };
+export type Args = PostArgs | CommentArgs | ReplyArgs | LikeArgs;
 
 export interface Item {
   id: string;

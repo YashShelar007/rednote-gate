@@ -15,8 +15,9 @@ export interface Entry {
 }
 
 export interface Limits {
-  daily: number; // live attempts per rolling 24 hours
+  daily: number; // live writes (posts, drafts, comments, replies) per rolling 24 hours
   commentGapMin: number; // minutes between live comments or replies
+  likes?: number; // live likes per rolling 24 hours, a separate cap (default 10)
 }
 
 /** RedNote showed a captcha or a "too frequent" warning. Stop; never retry. */
@@ -51,17 +52,21 @@ export type BudgetCheck = { ok: true } | { ok: false; reason: string; retryAt: D
 
 /** Failed and unknown live attempts count too: a click that errored may still have posted. */
 export function budgetCheck(entries: Entry[], tool: Tool, now: Date, limits: Limits): BudgetCheck {
-  if (!Number.isFinite(limits.daily) || !Number.isFinite(limits.commentGapMin)) {
+  const likeCap = limits.likes ?? 10;
+  if (!Number.isFinite(limits.daily) || !Number.isFinite(limits.commentGapMin) || !Number.isFinite(likeCap)) {
     return { ok: false, reason: "the budget settings are not numbers", retryAt: new Date(NaN) };
   }
-  if (limits.daily <= 0) return { ok: false, reason: "live writes are switched off (RN_DAILY_WRITES is 0)", retryAt: new Date(NaN) };
+  const isLike = tool === "like_note";
+  const cap = isLike ? likeCap : limits.daily;
+  if (cap <= 0) return { ok: false, reason: `live ${isLike ? "likes" : "writes"} are switched off (${isLike ? "RN_DAILY_LIKES" : "RN_DAILY_WRITES"} is 0)`, retryAt: new Date(NaN) };
   // A line whose time cannot be read counts as just now: never let it drop out of the budget.
   const time = (at: string) => (Number.isNaN(Date.parse(at)) ? now.getTime() : Date.parse(at));
   const live = entries.filter((e) => e.event === "attempt" && e.dryRun === false).map((e) => ({ tool: e.tool, at: time(e.at) }));
-  const lastDay = live.filter((e) => e.at > now.getTime() - DAY_MS);
-  if (lastDay.length >= limits.daily) {
+  // Likes and writes are counted separately: each against its own cap.
+  const lastDay = live.filter((e) => e.at > now.getTime() - DAY_MS && (e.tool === "like_note") === isLike);
+  if (lastDay.length >= cap) {
     const retryAt = new Date(Math.min(...lastDay.map((e) => e.at)) + DAY_MS);
-    return { ok: false, reason: `daily limit of ${limits.daily} live writes reached`, retryAt };
+    return { ok: false, reason: `daily limit of ${cap} live ${isLike ? "likes" : "writes"} reached`, retryAt };
   }
   if (COMMENT_TOOLS.includes(tool)) {
     const comments = live.filter((e) => e.tool && COMMENT_TOOLS.includes(e.tool));

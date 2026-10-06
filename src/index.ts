@@ -89,9 +89,16 @@ const noteUrl = z.string().url().refine((u) => { try { rn.parseNoteUrl(u); retur
 // Single-line fields: a line break would be typed as Enter, which can send a comment early.
 const oneLine = (max: number) => z.string().trim().min(1).max(max).refine((s) => !/[\r\n]/.test(s), "No line breaks here: Enter could send it early.");
 const title = oneLine(100).refine((t) => rn.titleLength(t) <= 20, "Title is longer than RedNote's 20 (a CJK character counts 1, ASCII counts half).");
+const topic = z.string().trim().min(1).max(20).refine((t) => !/[#\s]/.test(t), "A topic is one word or phrase, without # or spaces.");
 const post = {
   title,
-  body: z.string().min(1).max(1000).describe("note body; line breaks are kept"),
+  body: z
+    .string()
+    .min(1)
+    .max(1000)
+    .refine((b) => !b.includes("#"), "Put hashtags in topics, not in the body: a # in the body opens RedNote's topic picker and can change the text.")
+    .describe("note body; line breaks and emoji are kept; no # here"),
+  topics: z.array(topic).max(5).optional().describe("up to 5 topics without #, added as RedNote topics at the end of the body"),
   images: z.array(z.string()).min(1).max(9).describe("absolute paths to JPEG, PNG or WebP files, in posting order; the first is the cover"),
 };
 
@@ -123,6 +130,14 @@ server.registerTool(
   "rednote_create_draft",
   { description: "Queue a photo note to be saved as a draft, after human approval. Does NOT post. Returns a queue id.", inputSchema: post },
   (a) => queue("create_draft", a),
+);
+server.registerTool(
+  "rednote_like_note",
+  {
+    description: "Queue a like on a note for human approval. Does NOT like it yet. Likes have their own daily cap (10 by default). Pass noteTitle so the human sees which note.",
+    inputSchema: { url: noteUrl, noteTitle: z.string().max(100).optional() },
+  },
+  ({ url, noteTitle }) => queue("like_note", { noteUrl: url, ...(noteTitle && { noteTitle }) }),
 );
 server.registerTool(
   "rednote_post_comment",
@@ -172,7 +187,7 @@ server.registerPrompt(
     say(
       `${!photos || !about ? "First ask the user for whatever is missing: the photo paths (cover first) and what the note is about. Then continue.\n" : ""}` +
         `Draft a RedNote photo note about: ${about ?? "(ask the user)"}\nPhotos, in this order (the first is the cover): ${photos ?? "(ask the user)"}\n` +
-        "Write it the way people write on RedNote: a catchy title, a warm and specific body with short paragraphs, and 3 to 5 relevant hashtags at the end as plain #words. " +
+        "Write it the way people write on RedNote: a catchy title and a warm, specific body with short paragraphs; emoji are fine. Put 3 to 5 relevant topics in the topics field (no # in the body). " +
         "Match the language of the brief. Then call rednote_create_post with the photos in the given order. Show the user the title and body you queued. " +
         RULES,
     ),

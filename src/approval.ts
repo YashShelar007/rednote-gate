@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { timingSafeEqual } from "node:crypto";
-import { listItems, readItem, transition, type Item, type PostArgs, type CommentArgs, type ReplyArgs, type Status } from "./queue.js";
+import { listItems, readItem, transition, type Item, type PostArgs, type CommentArgs, type LikeArgs, type ReplyArgs, type Status } from "./queue.js";
 import { appendLedger, budgetCheck, haltReason, readLedger, type Limits } from "./ledger.js";
 
 export interface ApprovalOptions {
@@ -57,12 +57,13 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-const KIND: Record<Item["tool"], string> = { create_post: "Photo note", create_draft: "Draft", post_comment: "Comment", reply_comment: "Reply" };
+const KIND: Record<Item["tool"], string> = { create_post: "Photo note", create_draft: "Draft", post_comment: "Comment", reply_comment: "Reply", like_note: "Like" };
 const APPROVE_LIVE: Record<Item["tool"], string> = {
   create_post: "Approve and publish",
   create_draft: "Approve and save draft",
   post_comment: "Approve and send",
   reply_comment: "Approve and send reply",
+  like_note: "Approve and like",
 };
 const STATUS: Record<Status, string> = {
   pending: "Waiting for you",
@@ -85,7 +86,12 @@ function content(item: Item, t: string): string {
     const imgs = a.images
       .map((_, n) => `<li><img src="/img/${item.id}/${n}?t=${t}" width=144 height=144 alt="Image ${n + 1}${n === 0 ? ", cover" : ""}" loading=lazy><span>${n === 0 ? "1, cover" : n + 1}</span></li>`)
       .join("");
-    return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd><dt>Images, in posting order</dt><dd><ol class=imgs>${imgs}</ol></dd></dl>`;
+    const topics = a.topics?.length ? `<dt>Topics</dt><dd>${a.topics.map((t) => `#${esc(t)}`).join(" ")}</dd>` : "";
+    return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd>${topics}<dt>Images, in posting order</dt><dd><ol class=imgs>${imgs}</ol></dd></dl>`;
+  }
+  if (item.tool === "like_note") {
+    const a = item.args as LikeArgs;
+    return `<dl><dt>Like this note</dt><dd>${a.noteTitle ? `<span class=title>${esc(a.noteTitle)}</span><br>` : ""}<a href="${esc(a.noteUrl)}" rel="noreferrer noopener" target="_blank" translate=no>${esc(a.noteUrl)}</a></dd></dl>`;
   }
   const a = item.args as CommentArgs & Partial<ReplyArgs>;
   const note = `<dt>On note</dt><dd><a href="${esc(a.noteUrl)}" rel="noreferrer noopener" target="_blank" translate=no>${esc(a.noteUrl)}</a></dd>`;
@@ -123,7 +129,9 @@ function page(o: ApprovalOptions): string {
   const items = listItems(o.dir);
   const entries = readLedger(o.ledger);
   const now = new Date();
-  const used = entries.filter((e) => e.event === "attempt" && e.dryRun === false && new Date(e.at).getTime() > now.getTime() - 24 * 3600_000).length;
+  const live24 = entries.filter((e) => e.event === "attempt" && e.dryRun === false && new Date(e.at).getTime() > now.getTime() - 24 * 3600_000);
+  const used = live24.filter((e) => e.tool !== "like_note").length;
+  const likesUsed = live24.length - used;
   const halt = haltReason(entries);
   const waiting = (i: Item) => {
     if (i.approvedFor !== (o.dryRun ? "dry_run" : "live")) {
@@ -135,7 +143,7 @@ function page(o: ApprovalOptions): string {
     if (b.ok) return "Runs about 30 seconds after approval.";
     if (!Number.isFinite(b.retryAt.getTime())) return `Will not run: ${b.reason}.`;
     const at = new Intl.DateTimeFormat(undefined, { timeStyle: "short", dateStyle: "medium" }).format(b.retryAt);
-    const why = b.reason.startsWith("one comment") ? "Comments and replies go out at least 10 minutes apart." : `The daily limit of ${o.limits.daily} live writes is reached.`;
+    const why = b.reason.startsWith("one comment") ? "Comments and replies go out at least 10 minutes apart." : `The ${b.reason.replace(" reached", "")} is reached.`;
     return `Sends automatically at ${at}. ${why}`;
   };
   const approveLabel = (i: Item) => (o.dryRun ? "Approve dry run" : APPROVE_LIVE[i.tool]);
@@ -148,7 +156,7 @@ function page(o: ApprovalOptions): string {
 <body><a class=skip href="#queue">Skip to the queue</a><main>
 <h1>Approve writes to RedNote</h1>
 <div class="mode ${o.dryRun ? "dry" : "live"}">${o.dryRun ? "<b>Dry run.</b> Approved items fill in the form on RedNote but are never published or sent." : "<b>Live.</b> Approved items are published or sent from the account about 30 seconds after you approve."}
-<p class=budget>Live writes in the last 24 hours: ${used} of ${o.limits.daily}. <a href="/?t=${t}">Refresh</a></p></div>
+<p class=budget>Live in the last 24 hours: ${used} of ${o.limits.daily} writes, ${likesUsed} of ${o.limits.likes ?? 10} likes. <a href="/?t=${t}">Refresh</a></p></div>
 ${halt ? `<div class=halt role=alert><b>Stopped.</b> RedNote showed: ${esc(halt)}. Nothing runs until you resume. Open the RedNote app and check the account first.<form method=post action="/resume"><input type=hidden name=t value="${t}"><div class=row><button class=approve>Resume</button></div></form></div>` : ""}
 <section id=queue aria-labelledby=h-pending><h2 id=h-pending>Needs your decision (${pending.length})</h2>${pending.join("") || "<p class=note>Nothing waiting. When Claude queues a post, comment or reply, it shows up here.</p>"}</section>
 <section aria-labelledby=h-approved><h2 id=h-approved>Approved, not run yet (${approved.length})</h2>${approved.join("") || "<p class=note>None.</p>"}</section>

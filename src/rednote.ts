@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type { Locator, Page } from "playwright";
 import { hasCookie, newPage, saveSession, site } from "./session.js";
 import { BlockedError, NotSentError } from "./ledger.js";
-import type { CommentArgs, Item, PostArgs, ReplyArgs } from "./queue.js";
+import type { CommentArgs, Item, LikeArgs, PostArgs, ReplyArgs } from "./queue.js";
 
 const TYPE_MIN = Number(process.env.RN_TYPE_MIN_MS || 40);
 const TYPE_MAX = Number(process.env.RN_TYPE_MAX_MS || 140);
@@ -41,6 +41,8 @@ export const SEL = {
   commentSubmit: `div.bottom button.submit${SEEN}`, // VERIFY
   commentById: (id: string) => `#comment-${id}`, // VERIFY
   replyButton: `.right .interactions .reply${SEEN}`, // VERIFY
+  topicSuggestion: `#creator-editor-topic-container .item${NOT_DECOY}`, // the topic picker's entries (VERIFY)
+  likeButton: `.interact-container .left .like-lottie${NOT_DECOY}`, // icons may be aria-hidden, so only decoys are excluded (VERIFY)
 };
 
 // Text RedNote shows on a captcha or rate-limit page. Seeing any of it stops everything.
@@ -100,6 +102,20 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
 export function sameComment(found: { author?: string; text?: string } | undefined, approved: { author: string; text: string }): boolean {
   if (!found || !squash(approved.text) || !squash(approved.author)) return false;
   return squash(found.text ?? "") === squash(approved.text) && squash(found.author ?? "") === squash(approved.author);
+}
+
+/** The body as approved, optionally followed by the approved topics (as plain #name or as linked
+ *  chips such as "#name[话题]#"), and nothing else. */
+export function bodyMatches(got: string, body: string, topics: string[]): boolean {
+  const text = squash(got);
+  if (!text.startsWith(squash(body))) return false;
+  let rest = text.slice(squash(body).length);
+  for (const t of topics) {
+    const chip = new RegExp(`#${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\[话题\\]#)?(?=\\s|#|$)`, "u");
+    if (!chip.test(rest)) return false;
+    rest = rest.replace(chip, "");
+  }
+  return squash(rest) === "";
 }
 
 /** Read a field back before the final click: a topic or mention picker, or a stray key, must not
@@ -255,7 +271,7 @@ export function myNotes(limit = 10) {
 
 type Comment = { id: string; content: string; likeCount?: string; subCommentCount?: string; userInfo?: { nickname?: string } };
 type Detail = {
-  note?: { title?: string; desc?: string; time?: number; ipLocation?: string; user?: { nickname?: string }; tagList?: { name: string }[]; interactInfo?: { likedCount?: string; collectedCount?: string; commentCount?: string } };
+  note?: { title?: string; desc?: string; time?: number; ipLocation?: string; user?: { nickname?: string }; tagList?: { name: string }[]; interactInfo?: { liked?: boolean; likedCount?: string; collectedCount?: string; commentCount?: string } };
   comments?: { list?: Comment[]; firstRequestFinish?: boolean };
 };
 
@@ -310,8 +326,10 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
     await page.waitForFunction(([sel, n]) => document.querySelectorAll(sel as string).length >= (n as number), [SEL.uploadedImage, a.images.length], { timeout: 60_000 });
     await typeHuman(page, SEL.postTitle, a.title);
     await typeHuman(page, SEL.postBody, a.body);
+    for (const t of a.topics ?? []) await addTopic(page, t);
     await assertTyped(page, SEL.postTitle, a.title, true);
-    await assertTyped(page, SEL.postBody, a.body);
+    const typed = await page.locator(SEL.postBody).first().innerText();
+    if (!bodyMatches(typed, a.body, a.topics ?? [])) throw new Error(`The body reads "${squash(typed).slice(0, 80)}" instead of the approved text and topics. Not sending.`);
     await assertNotBlocked(page);
     // Find the final button even in a dry run, so a broken selector shows up before the first real post.
     const { target, position } = await finalPublishButton(page, draft);
@@ -322,6 +340,18 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
     else await page.waitForURL((u) => !u.pathname.includes("/publish/publish"), { timeout: 30_000 }); // success leaves the page
     await assertNotBlocked(page);
   }, screenshot);
+}
+
+/** Types "#topic" at the end of the body. If the picker offers exactly that topic, click it so it
+ *  becomes a linked topic; otherwise leave it as plain text. Never picks a different topic. */
+async function addTopic(page: Page, topic: string) {
+  await page.locator(SEL.postBody).first().focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
+  for (const ch of ` #${topic}`) await page.keyboard.type(ch, { delay: rand(TYPE_MIN, TYPE_MAX) });
+  const exact = page.locator(SEL.topicSuggestion).filter({ hasText: new RegExp(`^\\s*#?${topic.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`, "u") }).first();
+  if (await exact.isVisible({ timeout: 3_000 }).catch(() => false)) await exact.click();
+  else await page.keyboard.type(" ");
+  await page.waitForTimeout(rand(400, 800));
 }
 
 /** The publish bar's buttons sit 72px either side of its centre (measured 2026-10-06). Its own
@@ -390,6 +420,23 @@ function reply(a: ReplyArgs, screenshot: string, dryRun: boolean, p: Progress) {
   }, screenshot);
 }
 
+function like(a: LikeArgs, screenshot: string, dryRun: boolean, p: Progress) {
+  const { noteId, url } = parseNoteUrl(a.noteUrl);
+  return withPage(async (page) => {
+    await open(page, url);
+    const liked = async () => (await readState<Detail>(page, ["note", "noteDetailMap", noteId], (v) => !!v?.note))?.note?.interactInfo?.liked;
+    if (await liked()) throw new Error("This note is already liked. Nothing to do.");
+    const button = page.locator(SEL.likeButton).first();
+    await button.waitFor({ state: "visible", timeout: 10_000 });
+    if (dryRun) return;
+    p.clicked = true;
+    await button.click();
+    await page.waitForTimeout(rand(1500, 2500));
+    await assertNotBlocked(page);
+    if (!(await liked())) throw new Error("Clicked like, but the note does not show as liked. Check it in the app.");
+  }, screenshot);
+}
+
 /** The worker's Runner. Any error before the final click becomes NotSentError: provably nothing sent. */
 export async function runWrite(item: Item, queueDir: string, screenshot: string, dryRun: boolean): Promise<void> {
   const p: Progress = { clicked: false };
@@ -403,6 +450,8 @@ export async function runWrite(item: Item, queueDir: string, screenshot: string,
         }
       });
       await publish({ ...a, images }, item.tool === "create_draft", screenshot, dryRun, p);
+    } else if (item.tool === "like_note") {
+      await like(item.args as LikeArgs, screenshot, dryRun, p);
     } else if (item.tool === "post_comment") {
       await comment(item.args as CommentArgs, screenshot, dryRun, p);
     } else {

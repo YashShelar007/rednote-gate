@@ -43,9 +43,10 @@ Write tools only add an item to the queue and return its queue id. They never to
 
 | Tool | Arguments | What happens after approval |
 | --- | --- | --- |
-| `rednote_create_post` | `title` (RedNote's limit of 20: a CJK character counts 1, ASCII counts half), `body` (up to 1000 characters), `images` (1 to 9 absolute paths to JPEG, PNG or WebP files; the first is the cover) | publishes a photo note |
+| `rednote_create_post` | `title` (RedNote's limit of 20: a CJK character counts 1, ASCII counts half), `body` (up to 1000 characters, emoji fine, no `#`), `images` (1 to 9 absolute paths to JPEG, PNG or WebP files; the first is the cover), optional `topics` (up to 5, without `#`) | publishes a photo note; each topic is added as a linked RedNote topic when the picker offers exactly that topic, otherwise as plain `#text` |
 | `rednote_create_draft` | same as `rednote_create_post` | saves a draft instead of publishing |
 | `rednote_post_comment` | `url`, `text` (up to 500 characters) | posts a comment on the note |
+| `rednote_like_note` | `url`, optional `noteTitle` | likes the note (own daily cap, see `RN_DAILY_LIKES`); refuses a note already liked |
 | `rednote_reply_comment` | `url`, `commentId`, `commentAuthor`, `commentText`, `text` (up to 500 characters) | replies to that comment |
 
 For `rednote_reply_comment`, pass the id, author and text exactly as `rednote_get_comments` returned them. Before replying, the worker reads the comment with that id from the page and checks that its author and text still match exactly. If not, it does not reply.
@@ -280,6 +281,7 @@ If a line is not valid JSON, writes stop until you fix or remove that line. A bu
 | `RN_DRY_RUN` | `1` | `0` lets the worker click the final button on approved items |
 | `RN_DAILY_WRITES` | `5` | live attempts allowed in any rolling 24 hours |
 | `RN_COMMENT_GAP_MIN` | `10` | minutes between live comment or reply attempts |
+| `RN_DAILY_LIKES` | `10` | live likes allowed in any rolling 24 hours, separate from `RN_DAILY_WRITES` |
 | `RN_APPROVAL_PORT` | `7317` | approval page port |
 | `RN_DATA_DIR` | `<repo>/data` | queue, ledger, screenshots, lock |
 | `RN_SESSION_PATH` | `<repo>/.session/state.json` | saved login session |
@@ -300,7 +302,7 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 - Use more than one account, more than one browser context, or run writes at the same time.
 - Bulk post, or schedule posts nobody is watching.
 - Solve captchas, or retry after a block.
-- Like, favorite, follow or send messages.
+- Favorite, follow or send messages. (Likes were added on 2026-10-06 at the owner's request, behind the same approval page and their own daily cap.)
 - Run the account in a cloud browser.
 - Touch a primary or brand account.
 

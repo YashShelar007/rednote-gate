@@ -60,6 +60,14 @@ test("queuing the same write twice returns the first item instead of a second on
   assert.equal(listItems(dir).length, 1);
 });
 
+test("liking the same note twice is one item, even with a fresh xsec_token", () => {
+  const dir = fresh();
+  const first = enqueue(dir, "like_note", { noteUrl: "https://www.rednote.com/explore/6a1111111111111111111111?xsec_token=A" });
+  const second = enqueue(dir, "like_note", { noteUrl: "https://www.rednote.com/explore/6a1111111111111111111111?xsec_token=B" });
+  assert.equal(second.duplicate, true);
+  assert.equal(second.item.id, first.item.id);
+});
+
 test("a rejected write can be queued again", () => {
   const dir = fresh();
   const args = { noteUrl: "https://www.xiaohongshu.com/explore/abc?xsec_token=x", text: "nice" };

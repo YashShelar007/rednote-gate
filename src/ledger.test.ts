@@ -50,6 +50,15 @@ test("budget holds across a restart because it is read back from the file", () =
   assert.equal(budgetCheck(readLedger(f), "create_post", mins(5), LIMITS).ok, false);
 });
 
+test("likes have their own daily cap and do not use the write budget", () => {
+  const limits = { daily: 5, commentGapMin: 10, likes: 10 };
+  const fivePosts = [0, 1, 2, 3, 4].map((m) => attempt(mins(m)));
+  assert.equal(budgetCheck(fivePosts, "like_note", mins(5), limits).ok, true, "posts do not use up likes");
+  const tenLikes = Array.from({ length: 10 }, (_, m) => attempt(mins(m), "like_note"));
+  assert.equal(budgetCheck(tenLikes, "like_note", mins(10), limits).ok, false, "the 11th like waits");
+  assert.equal(budgetCheck(tenLikes, "create_post", mins(10), limits).ok, true, "likes do not use up writes");
+});
+
 test("halt: a blocked line halts until a later resumed line", () => {
   const blocked: Entry = { at: t0.toISOString(), event: "blocked", detail: "captcha" };
   assert.equal(haltReason([]), null);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { notesFromProfile, pageProblem, parseNoteUrl, sameComment, titleLength } from "./rednote.js";
+import { bodyMatches, notesFromProfile, pageProblem, parseNoteUrl, sameComment, titleLength } from "./rednote.js";
 
 const GOOD = "https://www.xiaohongshu.com/explore/6aa4b5e80000000028037e0b?xsec_token=ABArs&xsec_source=pc_search";
 
@@ -45,6 +45,16 @@ test("my notes come from the first tab of the profile state, with links that car
     { noteId: "6aaa9dfb0000000026017c4b", title: "周末", likes: "3", url: "https://www.rednote.com/explore/6aaa9dfb0000000026017c4b?xsec_token=AB%2Bx%2Fy%3D&xsec_source=pc_user" },
   ]);
   assert.deepEqual(notesFromProfile(undefined, "https://www.rednote.com", 10), []);
+});
+
+test("the body read-back allows topics after the approved text, and nothing else", () => {
+  const body = "今天在草坪上自习 ☀️\n效率很高";
+  assert.equal(bodyMatches("今天在草坪上自习 ☀️\n\n效率很高", body, []), true, "whitespace does not matter");
+  assert.equal(bodyMatches("今天在草坪上自习 ☀️ 效率很高 #校园生活 #自习", body, ["校园生活", "自习"]), true);
+  assert.equal(bodyMatches("今天在草坪上自习 ☀️ 效率很高 #校园生活[话题]#", body, ["校园生活"]), true, "a linked topic chip");
+  assert.equal(bodyMatches("今天在草坪上自习 效率很高", body, []), false, "the emoji was dropped");
+  assert.equal(bodyMatches("今天在草坪上自习 ☀️ 效率很高 #校园", body, ["校园生活"]), false, "a topic was cut short");
+  assert.equal(bodyMatches("今天在草坪上自习 ☀️ 效率很高 #校园生活 买买买", body, ["校园生活"]), false, "extra text after the topics");
 });
 
 test("title length counts a CJK character as 1 and ASCII as half", () => {

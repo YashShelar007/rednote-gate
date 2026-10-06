@@ -19,7 +19,7 @@ function whole(name: string, fallback: number): number {
   return n;
 }
 export const PORT = whole("RN_APPROVAL_PORT", 7317);
-export const LIMITS: Limits = { daily: whole("RN_DAILY_WRITES", 5), commentGapMin: whole("RN_COMMENT_GAP_MIN", 10) };
+export const LIMITS: Limits = { daily: whole("RN_DAILY_WRITES", 5), commentGapMin: whole("RN_COMMENT_GAP_MIN", 10), likes: whole("RN_DAILY_LIKES", 10) };
 
 /** A Mac notification. Fixed wording only: never note text or secrets. RN_NOTIFY=0 turns it off. */
 export function notify(message: string): void {
