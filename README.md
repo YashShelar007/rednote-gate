@@ -130,6 +130,14 @@ npm run connect
 
 `npm run connect` adds rednote-gate to Claude Code for all your projects (`claude mcp add --scope user`). For Claude Desktop or Codex, see below.
 
+It starts in dry run: approved items fill in the form but never publish. When a dry run looks right, switch modes with one command, then open a new Claude Code session:
+
+```bash
+npm run live
+```
+
+`npm run dry` switches back. Approvals given in one mode never run in the other.
+
 `npm run login` opens a visible browser at xiaohongshu.com. Overseas accounts get sent to rednote.com: the login follows, reloads on rednote.com and asks you to scan the new QR code. It records which site your account uses in `.session/site`. Scan the QR code with the throwaway account's phone. If the page shows you logged in but the terminal does not move on, press Enter there. It then visits creator.xiaohongshu.com to pick up the creator session; scan again if that site asks. It saves the session to `.session/state.json` with owner-only permissions (0600).
 
 Quit your MCP client before running it: only one process may drive the browser.
