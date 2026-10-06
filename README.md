@@ -4,6 +4,23 @@ rednote-gate drives ONE dedicated throwaway RedNote (Xiaohongshu) account. Never
 
 It is a local MCP server for Claude Code, Claude Desktop and Codex. Reads run directly. Every write waits in a queue until a human clicks Approve on a local web page.
 
+## Quick start
+
+```bash
+npm run setup
+```
+
+That installs Chromium, builds, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code. Then, in Claude Code:
+
+| Slash command | What happens |
+| --- | --- |
+| `/rednote-gate:post_photos` | Claude writes a photo note from your photos and a one-line brief, and queues it |
+| `/rednote-gate:reply_to_comments` | Claude reads a note's comments, drafts up to 3 replies, and queues them |
+| `/rednote-gate:research_topic` | Claude searches a topic, reads the top notes and comments, and summarises what works. Read only. |
+| `/rednote-gate:review_queue` | Claude summarises what is waiting and what happened |
+
+Or just ask in plain words ("post these two photos about my hike"). When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
+
 Status: the four read flows were checked against the live site on 2026-10-06 (rednote.com account, headed). The write flows have not been checked yet. See [Last verified against the live site](#last-verified-against-the-live-site).
 
 ## What it does
@@ -19,6 +36,7 @@ Read tools run straight away:
 | `rednote_get_note` | `url` | noteId, title, body, author, tags, likes, collects, comment count, ipLocation, time |
 | `rednote_get_comments` | `url`, `limit` (up to 50) | id, author, text, likes, reply count. First page only. |
 | `rednote_queue_status` | `limit` | recent queue items: id, tool, status, last change. Never the approval link. |
+| `rednote_open_approval_page` | none | opens the approval page in your browser. Never returns the link. |
 
 Write tools only add an item to the queue and return its queue id. They never touch the browser.
 
@@ -97,11 +115,20 @@ This project drives the RedNote website with a real browser and a real logged-in
 You need Node 20 or newer, a RedNote account made for this purpose, and the phone that account is logged in on.
 
 ```bash
+npm run setup
+```
+
+It runs these steps, which you can also run one by one:
+
+```bash
 npm install
 npx playwright install chromium
 npm run build
 npm run login
+npm run connect
 ```
+
+`npm run connect` adds rednote-gate to Claude Code for all your projects (`claude mcp add --scope user`). For Claude Desktop or Codex, see below.
 
 `npm run login` opens a visible browser at xiaohongshu.com. Overseas accounts get sent to rednote.com: the login follows, reloads on rednote.com and asks you to scan the new QR code. It records which site your account uses in `.session/site`. Scan the QR code with the throwaway account's phone. If the page shows you logged in but the terminal does not move on, press Enter there. It then visits creator.xiaohongshu.com to pick up the creator session; scan again if that site asks. It saves the session to `.session/state.json` with owner-only permissions (0600).
 
@@ -161,6 +188,10 @@ The page shows:
 - live writes used in the last 24 hours, and when the next slot opens
 - the mode: DRY RUN or LIVE
 - a halt banner if a captcha or warning stopped the worker
+- after each attempt, a screenshot of what the browser showed at the end
+- it refreshes itself every 5 seconds while something is approved or running
+
+It opens by itself when Claude queues a write (at most once a minute). `rednote_open_approval_page` opens it on request.
 
 Buttons:
 
@@ -242,6 +273,8 @@ If a line is not valid JSON, writes stop until you fix or remove that line. A bu
 | `RN_APPROVAL_PORT` | `7317` | approval page port |
 | `RN_DATA_DIR` | `<repo>/data` | queue, ledger, screenshots, lock |
 | `RN_SESSION_PATH` | `<repo>/.session/state.json` | saved login session |
+| `RN_OPEN_APPROVAL` | on | `0` stops the approval page opening by itself |
+| `RN_NOTIFY` | on | `0` turns off Mac notifications |
 | `RN_TYPE_MIN_MS` | `40` | shortest delay per typed character |
 | `RN_TYPE_MAX_MS` | `140` | longest delay per typed character |
 

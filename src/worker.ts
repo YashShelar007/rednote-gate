@@ -61,14 +61,17 @@ export async function tick(o: WorkerOptions): Promise<Status | "halted" | null> 
 }
 
 /** Polls every intervalMs. Never overlaps two ticks. Approvals get a 30 second undo window. */
-export function startWorker(o: Omit<WorkerOptions, "now">, intervalMs = 10_000): () => void {
+export function startWorker(o: Omit<WorkerOptions, "now">, intervalMs = 10_000, onOutcome: (outcome: Status) => void = () => {}): () => void {
   let busy = false;
   const timer = setInterval(async () => {
     if (busy) return;
     busy = true;
     try {
       const outcome = await tick({ graceMs: 30_000, ...o });
-      if (outcome && outcome !== "halted") console.error(`[rednote-gate] worker: ${outcome}`);
+      if (outcome && outcome !== "halted") {
+        console.error(`[rednote-gate] worker: ${outcome}`);
+        onOutcome(outcome);
+      }
     } catch (e) {
       console.error("[rednote-gate] worker error:", e instanceof Error ? e.message : e);
     } finally {

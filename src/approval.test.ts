@@ -63,6 +63,24 @@ test("a POST from another website cannot approve", async () => {
   s.close();
 });
 
+test("a real browser's own POST is accepted (Chrome may send Origin: null with Sec-Fetch-Site: same-origin)", async () => {
+  const s = await setup();
+  const { item } = enqueue(s.dir, "post_comment", { noteUrl: "u", text: "hi" });
+  const body = new URLSearchParams({ t: TOKEN, id: item.id, action: "approve" }).toString();
+  const cross = await s.call("POST", "/decide", { origin: "null", "sec-fetch-site": "cross-site", "content-type": "application/x-www-form-urlencoded" }, body);
+  assert.equal(cross.status, 403, "a null origin from another site is still refused");
+  const own = await s.call("POST", "/decide", { origin: "null", "sec-fetch-site": "same-origin", "content-type": "application/x-www-form-urlencoded" }, body);
+  assert.equal(own.status, 303);
+  assert.equal(readItem(s.dir, item.id).status, "approved");
+  s.close();
+});
+
+test("the page keeps referrers same-origin, so browsers send a real Origin and the token never leaves the page", async () => {
+  const s = await setup();
+  assert.equal((await s.call("GET", `/?t=${TOKEN}`)).headers["referrer-policy"], "same-origin");
+  s.close();
+});
+
 test("Approve only marks the item; nothing is posted", async () => {
   const s = await setup();
   const { item } = enqueue(s.dir, "post_comment", { noteUrl: "u", text: "hi" });
