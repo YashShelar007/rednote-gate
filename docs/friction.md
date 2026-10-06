@@ -28,3 +28,12 @@ Template:
 - Also seen: the search page, logged out, showed only a login wall.
 - Ledger line: none. rednote-gate was not involved.
 - Effect on code or process: note URLs must carry `xsec_token`. rednote-gate refuses bare note URLs before the browser opens. Take note URLs from `rednote_search` results.
+
+## 2026-10-06: logged-out local browser is sent to the login page
+
+- Where: the same note page, with its `xsec_token`, opened by rednote-gate's own Playwright Chromium (headless) from a home connection
+- Account state: logged out, no saved session
+- How observed: a one-page probe of `getNote`, no account involved
+- What happened: RedNote redirected to `/login` and showed the QR login wall. `__INITIAL_STATE__.note.noteDetailMap` held only a placeholder keyed `"undefined"`. Firecrawl, fetching the same url from its servers, had been served the note.
+- Ledger line: none. Not a captcha, so no halt.
+- Effect on code or process: `open()` now recognises a redirect to `/login` and says "not logged in, run `npm run login`" instead of a misleading layout error. Note reads can only be verified after login.

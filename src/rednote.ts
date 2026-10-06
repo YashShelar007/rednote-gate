@@ -82,6 +82,14 @@ function withPage<T>(fn: (page: Page) => Promise<T>, screenshot?: string): Promi
   });
 }
 
+/** Where RedNote sends a browser it will not serve. null when the url looks like a normal page. */
+export function pageProblem(url: string): string | null {
+  const path = new URL(url).pathname;
+  if (path === "/login" || path.startsWith("/website-login")) return "RedNote redirected to its login page: the session is not logged in. Run `npm run login`.";
+  if (path.startsWith("/404")) return "RedNote says this page is not available (deleted, private, or an expired xsec_token). Search again for a fresh url.";
+  return null;
+}
+
 async function assertNotBlocked(page: Page) {
   const url = page.url();
   const text = await page.locator("body").innerText({ timeout: 5_000 }).catch(() => "");
@@ -93,7 +101,8 @@ async function open(page: Page, url: string) {
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
   await page.waitForTimeout(rand(1200, 2500));
   await assertNotBlocked(page);
-  if (page.url().includes("/404")) throw new Error("RedNote says this note is not available (deleted, private, or an expired xsec_token). Search again for a fresh url.");
+  const problem = pageProblem(page.url());
+  if (problem) throw new Error(problem);
 }
 
 /** Type like a person: per-character delay plus the odd pause. */
