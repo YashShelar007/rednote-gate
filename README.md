@@ -7,6 +7,8 @@ It is a local MCP server for Claude Code, Claude Desktop and Codex. Reads run di
 ## Quick start
 
 ```bash
+git clone https://github.com/YashShelar007/rednote-gate.git
+cd rednote-gate
 npm run setup
 ```
 

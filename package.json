@@ -1,10 +1,28 @@
 {
   "name": "rednote-gate",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "MCP server for one throwaway RedNote (Xiaohongshu) account. Reads run directly; every write waits for a human Approve click.",
   "license": "MIT",
   "author": "Yash Shelar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YashShelar007/rednote-gate.git"
+  },
+  "homepage": "https://github.com/YashShelar007/rednote-gate#readme",
+  "bugs": {
+    "url": "https://github.com/YashShelar007/rednote-gate/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "rednote",
+    "xiaohongshu",
+    "playwright",
+    "human-in-the-loop",
+    "approval",
+    "claude"
+  ],
   "type": "module",
   "bin": {
     "rednote-gate": "dist/index.js"

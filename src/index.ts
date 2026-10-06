@@ -103,7 +103,8 @@ const post = {
   images: z.array(z.string()).min(1).max(9).describe("absolute paths to JPEG, PNG or WebP files, in posting order; the first is the cover"),
 };
 
-const server = new McpServer({ name: "rednote-gate", version: "0.1.0" });
+const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+const server = new McpServer({ name: "rednote-gate", version });
 
 server.registerTool("rednote_login_status", { description: "Check whether the saved RedNote session is logged in (main site and creator site). Read only." }, () => read("login_status"));
 server.registerTool(
