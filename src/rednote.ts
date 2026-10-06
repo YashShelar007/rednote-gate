@@ -98,16 +98,24 @@ async function assertTyped(page: Page, selector: string, expected: string, input
   }
 }
 
+// One tab for everything, like a person browsing: a window per action flashes open and shut.
+let tab: Page | null = null;
+
+/** Writes pass a screenshot path; their tab is closed afterwards so a half-filled form is never reused. */
 function withPage<T>(fn: (page: Page) => Promise<T>, screenshot?: string): Promise<T> {
   return serial(async () => {
-    const page = await newPage();
+    if (!tab || tab.isClosed()) tab = await newPage();
+    const page = tab;
     try {
       const out = await fn(page);
       await saveSession().catch(() => {}); // keep rotated cookies
       return out;
     } finally {
-      if (screenshot) await page.screenshot({ path: screenshot }).catch(() => {});
-      await page.close().catch(() => {});
+      if (screenshot) {
+        await page.screenshot({ path: screenshot }).catch(() => {});
+        await page.close().catch(() => {});
+        tab = null;
+      }
     }
   });
 }

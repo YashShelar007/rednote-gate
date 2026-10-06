@@ -4,7 +4,7 @@ rednote-gate drives ONE dedicated throwaway RedNote (Xiaohongshu) account. Never
 
 It is a local MCP server for Claude Code, Claude Desktop and Codex. Reads run directly. Every write waits in a queue until a human clicks Approve on a local web page.
 
-Status: no flow has been checked against the live site yet. See [Last verified against the live site](#last-verified-against-the-live-site).
+Status: the four read flows were checked against the live site on 2026-10-06 (rednote.com account, headed). The write flows have not been checked yet. See [Last verified against the live site](#last-verified-against-the-live-site).
 
 ## What it does
 
@@ -268,8 +268,8 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 - **Selectors drift.** RedNote changes its pages. The selectors live in the `SEL` object in `src/rednote.ts`. Fix them there. Record the evidence in the capture block in [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md) and in [docs/friction.md](docs/friction.md).
 - **Unknown blocks a re-queue.** An `unknown` item blocks an identical write. If you check by hand and it did not post, change the text before queuing it again.
 - **Comments are first page only.**
-- **Headed by default.** A Chromium window opens when a browser tool runs. Set `RN_HEADLESS=1` once you trust it.
-- **Nothing is verified live yet.** See the table below.
+- **Headed by default.** A Chromium window opens when a browser tool runs and stays open as one tab. Set `RN_HEADLESS=1` once you trust it.
+- **Writes are not verified live yet.** See the table below.
 
 ## Anti-bot measures (disclosed on purpose)
 
@@ -285,10 +285,10 @@ There is no captcha solving. There is no fingerprint spoofing beyond the three i
 
 | Flow | Tool | Status as of 2026-10-06 |
 | --- | --- | --- |
-| Login status | `rednote_login_status` | not yet verified |
-| Search | `rednote_search` | not yet verified |
-| Get note | `rednote_get_note` | not yet verified |
-| Get comments | `rednote_get_comments` | not yet verified |
+| Login status | `rednote_login_status` | verified headed 2026-10-06 (rednote.com); headless not yet |
+| Search | `rednote_search` | verified headed 2026-10-06 (rednote.com); headless not yet |
+| Get note | `rednote_get_note` | verified headed 2026-10-06 (rednote.com); headless not yet |
+| Get comments | `rednote_get_comments` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Create post | `rednote_create_post` | not yet verified |
 | Create draft | `rednote_create_draft` | not yet verified |
 | Post comment | `rednote_post_comment` | not yet verified |
