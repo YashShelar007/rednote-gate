@@ -68,7 +68,8 @@ export async function hasCookie(name: string): Promise<boolean> {
 export async function saveSession(): Promise<void> {
   if (!context) return;
   mkdirSync(dirname(SESSION_PATH), { recursive: true, mode: 0o700 });
-  await (await context).storageState({ path: SESSION_PATH });
+  // indexedDB: RedNote's web drafts live in the browser's IndexedDB, not in the account.
+  await (await context).storageState({ path: SESSION_PATH, indexedDB: true });
   chmodSync(SESSION_PATH, 0o600);
 }
 

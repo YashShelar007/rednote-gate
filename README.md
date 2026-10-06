@@ -310,6 +310,7 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 - **The service keeps running.** It starts on first use and stays up until `npm run stop` or a reboot. After changing settings or updating the code, run `npm run stop`; the next tool call starts it fresh. Its log is `data/service.log`.
 - **Selectors drift.** RedNote changes its pages. The selectors live in the `SEL` object in `src/rednote.ts`. Fix them there. Record the evidence in the capture block in [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md) and in [docs/friction.md](docs/friction.md).
 - **Unknown blocks a re-queue.** An `unknown` item blocks an identical write. If you check by hand and it did not post, change the text before queuing it again.
+- **Drafts stay in rednote-gate's browser.** RedNote's web creator site keeps drafts in the browser, not in your account (its own notice says so). A draft saved by rednote-gate does not appear in your phone app. rednote-gate keeps it across restarts by saving the browser's IndexedDB with the session; to finish it, open the creator site's 草稿箱 in rednote-gate's browser.
 - **Comments are first page only.**
 - **Headed by default.** A Chromium window opens when a browser tool runs and stays open as one tab. Set `RN_HEADLESS=1` once you trust it.
 - **Writes are not verified live yet.** See the table below.
