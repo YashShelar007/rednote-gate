@@ -161,11 +161,12 @@ server.registerPrompt(
   {
     title: "Draft a photo note and queue it",
     description: "Write a RedNote photo note from your photos and a short brief, then queue it for your approval.",
-    argsSchema: { photos: z.string().describe("absolute paths to the photos, comma separated, cover first"), about: z.string().describe("what the note is about, in a sentence or two") },
+    argsSchema: { photos: z.string().optional().describe("absolute paths to the photos, comma separated, cover first"), about: z.string().optional().describe("what the note is about, in a sentence or two") },
   },
   ({ photos, about }) =>
     say(
-      `Draft a RedNote photo note about: ${about}\nPhotos, in this order (the first is the cover): ${photos}\n` +
+      `${!photos || !about ? "First ask the user for whatever is missing: the photo paths (cover first) and what the note is about. Then continue.\n" : ""}` +
+        `Draft a RedNote photo note about: ${about ?? "(ask the user)"}\nPhotos, in this order (the first is the cover): ${photos ?? "(ask the user)"}\n` +
         "Write it the way people write on RedNote: a catchy title, a warm and specific body with short paragraphs, and 3 to 5 relevant hashtags at the end as plain #words. " +
         "Match the language of the brief. Then call rednote_create_post with the photos in the given order. Show the user the title and body you queued. " +
         RULES,
@@ -176,11 +177,11 @@ server.registerPrompt(
   {
     title: "Draft replies to a note's comments",
     description: "Read the comments on one of your notes, draft replies to the ones worth answering, and queue them for approval.",
-    argsSchema: { url: z.string().describe("the note url, from rednote_search or the address bar") },
+    argsSchema: { url: z.string().optional().describe("the note url, from rednote_search or the address bar") },
   },
   ({ url }) =>
     say(
-      `Call rednote_get_comments for ${url}. Pick at most 3 comments worth answering: real questions or real feedback. Skip spam, insults and anything you cannot answer honestly. ` +
+      `${url ? "" : "First ask the user which note: a url from rednote_search, or a title to search for. Then continue.\n"}Call rednote_get_comments for ${url ?? "that note"}. Pick at most 3 comments worth answering: real questions or real feedback. Skip spam, insults and anything you cannot answer honestly. ` +
         "For each, write a short, friendly, specific reply in the commenter's language, under 200 characters. Queue each with rednote_reply_comment, passing commentId, commentAuthor and commentText exactly as returned. " +
         "Replies go out at least 10 minutes apart because of the budget. List what you queued. " +
         RULES,
@@ -191,11 +192,11 @@ server.registerPrompt(
   {
     title: "Research a topic on RedNote",
     description: "Search a topic, read the top notes and their comments, and summarise what works. Read only.",
-    argsSchema: { topic: z.string().describe("keyword or phrase to search") },
+    argsSchema: { topic: z.string().optional().describe("keyword or phrase to search") },
   },
   ({ topic }) =>
     say(
-      `Research "${topic}" on RedNote. Call rednote_search with limit 10. Read the 3 notes with the most likes using rednote_get_note, and the comments of the top one with rednote_get_comments. ` +
+      `${topic ? "" : "First ask the user what topic to research. Then continue.\n"}Research "${topic ?? "the topic"}" on RedNote. Call rednote_search with limit 10. Read the 3 notes with the most likes using rednote_get_note, and the comments of the top one with rednote_get_comments. ` +
         "Summarise: what people post about it, the questions commenters keep asking, title patterns that get likes, common hashtags, and 3 concrete post ideas for this account. " +
         "This is read only: do not queue anything. Space out the reads; do not call tools in parallel.",
     ),
