@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { enqueue, readItem, transition } from "./queue.js";
-import { BlockedError, appendLedger, readLedger } from "./ledger.js";
+import { BlockedError, NotSentError, appendLedger, readLedger } from "./ledger.js";
 import { tick, type Runner } from "./worker.js";
 
 const LIMITS = { daily: 5, commentGapMin: 10 };
@@ -88,6 +88,25 @@ test("an approved item over budget waits", async () => {
   const run = counting();
   assert.equal(await tick({ ...o, run, dryRun: false, now }), null);
   assert.equal(readItem(o.dir, id).status, "approved");
+});
+
+test("a live error before the final click is failed, and the write can be queued again", async () => {
+  const o = setup();
+  const id = approved(o.dir, "hello");
+  const outcome = await tick({ ...o, dryRun: false, run: async () => { throw new NotSentError("comment text changed"); } });
+  assert.equal(outcome, "failed");
+  assert.equal(enqueue(o.dir, "post_comment", { noteUrl: "u", text: "hello" }).duplicate, false);
+  assert.equal(readItem(o.dir, id).history.at(-1)?.note, "comment text changed");
+});
+
+test("a fresh approval waits out the undo window before it runs", async () => {
+  const o = setup();
+  const id = approved(o.dir, "hello");
+  const approvedAt = new Date(readItem(o.dir, id).history.at(-1)!.at).getTime();
+  const run = counting();
+  assert.equal(await tick({ ...o, run, dryRun: true, graceMs: 30_000, now: new Date(approvedAt + 29_000) }), null);
+  assert.equal(await tick({ ...o, run, dryRun: true, graceMs: 30_000, now: new Date(approvedAt + 30_000) }), "dry_run");
+  assert.deepEqual(run.calls, [id]);
 });
 
 test("a captcha halts the worker until a human resumes", async () => {

@@ -5,7 +5,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { listItems, transition, type Item, type Status } from "./queue.js";
-import { BlockedError, appendLedger, budgetCheck, haltReason, readLedger, type Limits } from "./ledger.js";
+import { BlockedError, NotSentError, appendLedger, budgetCheck, haltReason, readLedger, type Limits } from "./ledger.js";
 
 /** Runs one item in the browser. Must throw if anything went wrong. */
 export type Runner = (item: Item, screenshot: string, dryRun: boolean) => Promise<void>;
@@ -18,6 +18,7 @@ export interface WorkerOptions {
   dryRun: boolean;
   run: Runner;
   now?: Date;
+  graceMs?: number; // undo window: an approval only runs once it is this old
 }
 
 /** Processes at most one item. Returns its outcome, "halted", or null when nothing was ready. */
@@ -25,38 +26,44 @@ export async function tick(o: WorkerOptions): Promise<Status | "halted" | null> 
   const now = o.now ?? new Date();
   const entries = readLedger(o.ledger);
   if (haltReason(entries)) return "halted";
-  // Dry runs spend no budget, so only live mode has to fit inside it.
-  const item = listItems(o.dir).find((i) => i.status === "approved" && (o.dryRun || budgetCheck(entries, i.tool, now, o.limits).ok));
+  const ready = (i: Item) =>
+    i.status === "approved" &&
+    now.getTime() - new Date(i.history.at(-1)!.at).getTime() >= (o.graceMs ?? 0) &&
+    (o.dryRun || budgetCheck(entries, i.tool, now, o.limits).ok); // dry runs spend no budget
+  const item = listItems(o.dir).find(ready);
   if (!item) return null;
 
   mkdirSync(o.shots, { recursive: true });
   const screenshot = join(o.shots, `${item.id}.png`);
   appendLedger(o.ledger, { at: now.toISOString(), event: "attempt", id: item.id, tool: item.tool, dryRun: o.dryRun });
-  transition(o.dir, item.id, "posting");
+  transition(o.dir, item.id, "posting", o.dryRun ? "dry run" : "live");
 
   let outcome: Status = o.dryRun ? "dry_run" : "posted";
   let detail: string | undefined;
   try {
     await o.run(item, screenshot, o.dryRun);
   } catch (e) {
-    // Live errors are "unknown", never "failed": the final click may have landed before the error.
-    outcome = o.dryRun ? "failed" : "unknown";
+    // A live error is "unknown" unless the flow proves it stopped before the final click:
+    // the click may have landed before the error.
+    outcome = o.dryRun || e instanceof NotSentError ? "failed" : "unknown";
     detail = e instanceof Error ? e.message : String(e);
-    if (e instanceof BlockedError) appendLedger(o.ledger, { at: new Date().toISOString(), event: "blocked", id: item.id, detail });
+    if (e instanceof BlockedError || (e instanceof Error && e.cause instanceof BlockedError)) {
+      appendLedger(o.ledger, { at: new Date().toISOString(), event: "blocked", id: item.id, detail });
+    }
   }
   transition(o.dir, item.id, outcome, detail);
   appendLedger(o.ledger, { at: new Date().toISOString(), event: "result", id: item.id, tool: item.tool, dryRun: o.dryRun, outcome, ...(detail && { detail }), screenshot });
   return outcome;
 }
 
-/** Polls every intervalMs. Never overlaps two ticks. */
+/** Polls every intervalMs. Never overlaps two ticks. Approvals get a 30 second undo window. */
 export function startWorker(o: Omit<WorkerOptions, "now">, intervalMs = 10_000): () => void {
   let busy = false;
   const timer = setInterval(async () => {
     if (busy) return;
     busy = true;
     try {
-      const outcome = await tick(o);
+      const outcome = await tick({ graceMs: 30_000, ...o });
       if (outcome && outcome !== "halted") console.error(`[rednote-gate] worker: ${outcome}`);
     } catch (e) {
       console.error("[rednote-gate] worker error:", e instanceof Error ? e.message : e);

@@ -121,9 +121,14 @@ export function transition(dir: string, id: string, to: Status, note?: string, n
   return item;
 }
 
-/** On startup: anything still "posting" was cut off mid-attempt. Mark it unknown; never retry it. */
+/** On startup: anything still "posting" was cut off mid-attempt. A live one becomes unknown and is
+ *  never retried. A dry run never clicks the final button, so it simply failed. */
 export function recoverInterrupted(dir: string, now = new Date()): Item[] {
   return listItems(dir)
     .filter((i) => i.status === "posting")
-    .map((i) => transition(dir, i.id, "unknown", "process stopped mid-attempt; check the account by hand", now));
+    .map((i) =>
+      i.history.at(-1)?.note === "dry run"
+        ? transition(dir, i.id, "failed", "process stopped mid dry run", now)
+        : transition(dir, i.id, "unknown", "process stopped mid-attempt; check the account by hand", now),
+    );
 }

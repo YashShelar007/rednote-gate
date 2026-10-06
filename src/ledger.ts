@@ -22,6 +22,9 @@ export interface Limits {
 /** RedNote showed a captcha or a "too frequent" warning. Stop; never retry. */
 export class BlockedError extends Error {}
 
+/** A flow stopped before its final click, so nothing was sent. Safe to queue again. */
+export class NotSentError extends Error {}
+
 const DAY_MS = 24 * 3600_000;
 const COMMENT_TOOLS: Tool[] = ["post_comment", "reply_comment"];
 

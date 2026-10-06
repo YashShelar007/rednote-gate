@@ -83,6 +83,15 @@ test("an item left mid-post by a crash becomes unknown and is never retried", ()
   assert.throws(() => transition(dir, item.id, "posting"));
 });
 
+test("a dry run cut off by a crash becomes failed, since it never clicks the final button", () => {
+  const dir = fresh();
+  const { item } = enqueue(dir, "post_comment", { noteUrl: "u", text: "t" });
+  transition(dir, item.id, "approved");
+  transition(dir, item.id, "posting", "dry run");
+  recoverInterrupted(dir);
+  assert.equal(readItem(dir, item.id).status, "failed");
+});
+
 test("ids that could escape the queue folder are refused", () => {
   assert.throws(() => readItem(fresh(), "../../.session/state"), /bad queue id/);
 });
