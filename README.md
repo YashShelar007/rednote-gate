@@ -21,7 +21,7 @@ That installs Chromium, builds, opens the QR login for your throwaway account, a
 
 Or just ask in plain words ("post these two photos about my hike"). The first time you use a rednote tool, a small background service starts. It owns the browser, the approval page and the worker, and it keeps running after you close Claude Code, so the approval page always works and approved items always run. It closes the browser window after 5 idle minutes. Stop it with `npm run stop`. When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
 
-Status: the four read flows were checked against the live site on 2026-10-06 (rednote.com account, headed). The four write flows passed dry runs on the live site the same day; no real write has been made yet. See [Last verified against the live site](#last-verified-against-the-live-site).
+Status: every flow was checked against the live site on 2026-10-06 on a rednote.com account, headed: four reads, and one real publish, draft, comment and reply, each approved by a human on the approval page. See [Last verified against the live site](#last-verified-against-the-live-site).
 
 ## What it does
 
@@ -334,12 +334,12 @@ RedNote's pages contain hidden decoy buttons that a person cannot see or click. 
 | Login status | `rednote_login_status` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Search | `rednote_search` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | Get note | `rednote_get_note` | verified headed 2026-10-06 (rednote.com); headless not yet |
-| My notes | `rednote_my_notes` | not yet verified |
+| My notes | `rednote_my_notes` | verified headed 2026-10-06 (rednote.com) |
 | Get comments | `rednote_get_comments` | verified headed 2026-10-06 (rednote.com); headless not yet |
-| Create post | `rednote_create_post` | dry run verified headed 2026-10-06 (rednote.com); no real post yet |
-| Create draft | `rednote_create_draft` | dry run verified headed 2026-10-06 (rednote.com); no real draft yet |
-| Post comment | `rednote_post_comment` | dry run verified headed 2026-10-06 (rednote.com); no real comment yet |
-| Reply comment | `rednote_reply_comment` | dry run verified headed 2026-10-06 (rednote.com); no real reply yet |
+| Create post | `rednote_create_post` | live verified 2026-10-06 (rednote.com): note published, listed by `rednote_my_notes` |
+| Create draft | `rednote_create_draft` | live verified 2026-10-06 (rednote.com): saved, but only in rednote-gate's browser (see Known limits) |
+| Post comment | `rednote_post_comment` | live verified 2026-10-06 (rednote.com) |
+| Reply comment | `rednote_reply_comment` | live verified 2026-10-06 (rednote.com); held 9 minutes by the comment gap, then sent on its own |
 
 [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md) is how each row gets checked. Update this table with the date and result after each run.
 
