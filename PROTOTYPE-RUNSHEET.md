@@ -1,77 +1,198 @@
-# RedNote MCP — Hybrid plan run sheet
+# Live-site verification run sheet
 
-**Plan:** prototype on Microsoft's Playwright MCP to discover the real flows, then harden them into
-this repo's own end-to-end server (`src/`). All of Phase 1 runs on **your local machine** with a
-**dedicated** RedNote account.
+This is how each flow gets checked against the real RedNote site. You run rednote-gate itself, headed, on the throwaway account, and watch the browser window. Nothing here uses a separate browser tool.
 
-The point of Phase 1 is NOT the posts — it's the **capture** at the bottom. Each flow Claude gets
-working, you record, and that recording is what our own server implements without guessing.
+The goal is not the posts. The goal is the capture blocks at the bottom. They are the evidence for the "Last verified" table in [README.md](README.md) and for any selector fix in `src/rednote.ts`.
 
----
+## Before you start (once)
 
-## Phase 0 — prerequisites (once)
+1. **Throwaway account.** Make a RedNote account in the phone app for this purpose only. Never a primary or brand account. Keep the phone next to you.
+2. **Build and log in.**
 
-1. **Dedicated RedNote account.** Sign up in the RedNote phone app. This is the account whose ban
-   risk you've accepted — never a primary/brand account. Keep the phone next to you for the QR login.
-2. **Local machine with Node 18+** and your Claude Code / Codex client.
+   ```bash
+   npm install
+   npx playwright install chromium
+   npm run build
+   npm run login
+   ```
 
-## Phase 1 — prototype with Microsoft's Playwright MCP (you + Claude, headed)
+   Scan the QR code with the throwaway phone. Let it finish the visit to creator.xiaohongshu.com.
+3. **Add rednote-gate to your MCP client** as shown in the README. Leave `RN_DRY_RUN` unset or `1`. Leave `RN_HEADLESS` unset, so the browser window is visible.
+4. **Remove every browser MCP from that client session.** Never load a browser MCP such as `@playwright/mcp` in the same client session as rednote-gate. An agent with a browser could open the approval page and click Approve. In Claude Code, run `claude mcp list` and check before every session.
 
-```bash
-npx playwright install chromium
+## Rules for every session
 
-# Pin the version (it's 0.0.x and changes weekly). Persistent profile = stay logged in.
-claude mcp add rednote -- npx @playwright/mcp@0.0.83 --user-data-dir ~/.rednote-profile --browser chromium
-# (Codex: put the same command/args in its MCP config. Verify flags: npx @playwright/mcp@0.0.83 --help)
+- Watch the browser window the whole time.
+- Reads first. Writes only after every read works.
+- Dry run before every live write.
+- At most one live write per evening. Leave days between live writes.
+- Stop at the first sign of friction: captcha, slider, "too frequent", a login prompt. Record it in [docs/friction.md](docs/friction.md) before you do anything else.
+- Fill the capture block for the flow before you close the session.
+
+## Part 1: read ladder (one evening)
+
+Ask your agent in plain words. Do these in order. Do not skip ahead.
+
+| # | Ask the agent | Tool | Check |
+| --- | --- | --- | --- |
+| R1 | "Check the RedNote login status." | `rednote_login_status` | says logged in |
+| R2 | "Search RedNote for 奖学金, 5 results." | `rednote_search` | 5 results. Each url carries `xsec_token`. |
+| R3 | "Get the note at <url from R2>." | `rednote_get_note` | title, body, author, counts match what the window shows |
+| R4 | "Get the first 10 comments on <same url>." | `rednote_get_comments` | id, author, text look right |
+| R5 | "Get the note at https://www.xiaohongshu.com/explore/<id from R2>." | `rednote_get_note` | refused before any browser opens. Bare URLs cause a captcha. |
+
+If R1 says logged out, run `npm run login` again before going on.
+
+## Part 2: write ladder (days apart)
+
+Order: publish, draft, comment, reply. One flow per evening. Example schedule:
+
+| Day | Flow |
+| --- | --- |
+| 1 | read ladder |
+| 3 | W1 publish: dry run, then one live post |
+| 5 | W2 draft: dry run, then one live draft |
+| 7 | W3 comment: dry run, then one live comment |
+| 9 | W4 reply: dry run, then one live reply |
+
+Each write flow goes the same way:
+
+1. **Dry run.** With `RN_DRY_RUN=1`, ask the agent to queue the write. It returns a queue id.
+2. Run `npm run approve` from the repo root and open the link. Check that the page says DRY RUN. Check the exact content. Click Approve. The worker starts about 30 seconds later; Cancel works until then.
+3. Watch the window. Within about 10 seconds the worker opens the page, uploads images and types the text. It stops before the final click. Note that dry run still uploads images to RedNote's creator page.
+4. Check the item is `dry_run` (ask the agent for `rednote_queue_status`). Look at `data/screenshots/<id>.png` and the last lines of `data/ledger.jsonl`.
+5. **Live.** If the dry run looked right, set `RN_DRY_RUN=0` in the client config and restart the client. Get a fresh approval link: the token changes on every start. Check the page says LIVE.
+6. Ask the agent to queue the same write again. A finished dry run does not block an identical item, so you get a new id. Approve it once. Watch.
+7. Check the item is `posted`. Then check on the phone that it really appeared.
+8. Set `RN_DRY_RUN` back to `1` and restart the client.
+9. Fill the capture block. Update the README table with the date and result.
+
+Flow notes:
+
+- **W1 publish.** Use one small image you own. Plain test text.
+- **W2 draft.** Check the draft shows in the account's drafts, and that nothing was published.
+- **W3 comment.** Comment on the test note from W1, not on a stranger's note. Get its url from `rednote_search`, since bare URLs are refused. If the test note is not in search yet, try again another day.
+- **W4 reply.** Call `rednote_get_comments` on the W1 note first. Reply to the W3 comment. Pass its id, author and text exactly as returned. The worker checks the comment still exists and its text matches before it replies.
+
+## If something goes wrong
+
+| What you see | What to do |
+| --- | --- |
+| Halt banner, `blocked` line in the ledger | rednote-gate has stopped the worker and refuses reads. Look at the account on the phone. Record it in docs/friction.md. Click Resume only on a later day. |
+| Item `unknown` | Never retried. Check the account by hand to see if it posted. Record what you found in the capture block. An `unknown` item blocks an identical write, so change the text if you need to queue it again. |
+| Item `failed` | A dry run hit an error. Nothing could have posted. Read the screenshot and the ledger `detail`. |
+| A selector does not match | Fix it in the `SEL` object in `src/rednote.ts`. Rebuild. Repeat the dry run. Write the change in the capture block. |
+| Item stays `approved` | The budget is full, rednote-gate is halted, or the client is not running. The approval page shows when the next slot opens. |
+
+## Capture blocks
+
+Fill one block per flow. Write what you saw in the window, not what the code is meant to do. Element labels are the visible text or role, plus the `SEL` key that matched it.
+
+### Login status (R1)
+
+```
+DATE:
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED:
+SEL CHANGES:
 ```
 
-**One-time login:** tell Claude _"open xiaohongshu.com"_, scan the QR with the dedicated account's
-phone. The `--user-data-dir` profile keeps you logged in after that. That folder is now a credential.
-
-**Test ladder — do these in order, headed, watching the window. Do not skip ahead.**
-
-| #   | Prompt to Claude                                                                                                      | What you're checking         |
-| --- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| 1   | "search RedNote for 奖学金 and summarise the top 5 notes"                                                             | read path works; login holds |
-| 2   | "open this note <url> and list its comments"                                                                          | read a note + comments       |
-| 3   | "go to the publish page, fill a title and body about X, add this image — but DO NOT click 发布; show me what you see" | the write form, dry          |
-| 4   | (after watching #3) "now publish it"                                                                                  | first real post              |
-| 5   | "save a post about Y as a draft (don't publish)"                                                                      | draft flow                   |
-| 6   | "post this comment on note <url>: …"                                                                                  | comment                      |
-| 7   | "reply to the 2nd comment on note <url> with: …"                                                                      | reply                        |
-
-Space these out. A burst of writes is the fastest way to a limit or ban.
-
----
-
-## The capture — fill one block per working flow (this is the spec for Phase 2)
-
-For each of search / get-note / get-comments / create-post / create-draft / comment / reply:
+### Search (R2)
 
 ```
-FLOW: <name>
-START URL: <where it begins, e.g. creator.xiaohongshu.com/publish/publish>
-STEPS (in order, as Claude actually did them):
-  1. <action> on element labelled "<visible text / role>"   e.g. click button "发布"
-  2. type into field labelled "<...>"
-  3. wait for "<...>" to appear
-  ...
-WHAT SUCCEEDED: <the post/comment appeared? where?>
-WAITS THAT MATTERED: <uploads need N seconds? a spinner to clear?>
-ANTI-BOT / FRICTION: <captcha? slider? "operation too frequent"? login re-prompt?>
-RATE LIMIT HIT AT: <if any — e.g. 3rd comment in a minute>
+DATE:
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED:
+SEL CHANGES:
 ```
 
-Claude can produce most of this itself — ask it: _"for the flow you just did, write out the exact
-ordered steps and the label/role of each element you acted on, in the capture format."_
+### Get note (R3, R5)
 
----
+```
+DATE:
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED:
+BARE URL REFUSED (R5):
+SEL CHANGES:
+```
 
-## Phase 2 — harden into this repo's own server (from your captures)
+### Get comments (R4)
 
-Once the captures are in, we implement the proven flows in this folder's `src/rednote.ts` (the
-scaffold is already built for it — `SEL`, `typeHuman`, dry-run, session persistence), you run **ours**
-locally the same way, and when it matches the prototype we drop Microsoft's MCP. Our server is then
-end-to-end ours, and can later grow the unattended/scheduled layer.
+```
+DATE:
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED:
+SEL CHANGES:
+```
 
-**Timing:** Phase 1 is a local, interactive loop. Phase 2 is ordinary coding from the captures.
+### Create post (W1)
+
+```
+DRY RUN:  date / queue id / status / screenshot
+LIVE:     date / queue id / status / screenshot
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED (seen on the phone?):
+SEL CHANGES:
+```
+
+### Create draft (W2)
+
+```
+DRY RUN:  date / queue id / status / screenshot
+LIVE:     date / queue id / status / screenshot
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED (draft present, nothing published?):
+SEL CHANGES:
+```
+
+### Post comment (W3)
+
+```
+DRY RUN:  date / queue id / status / screenshot
+LIVE:     date / queue id / status / screenshot
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED (seen on the phone?):
+SEL CHANGES:
+```
+
+### Reply comment (W4)
+
+```
+DRY RUN:  date / queue id / status / screenshot
+LIVE:     date / queue id / status / screenshot
+START URL:
+STEPS:
+ELEMENT LABELS:
+WAITS THAT MATTERED:
+FRICTION:
+WHAT SUCCEEDED (reply under the right comment?):
+SEL CHANGES:
+```

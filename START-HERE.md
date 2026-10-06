@@ -1,42 +1,70 @@
-# START HERE — for the coding session picking this up
+# Start here
 
-You're building **rednote-mcp**: a local MCP server that lets an MCP client (Claude/Codex) drive a
-RedNote (Xiaohongshu) account — search/read, and create posts, drafts, comments, replies — via
-Playwright, because RedNote has no official write API.
+For a new contributor or a new AI coding session. Read this first, then [README.md](README.md).
 
-## State of this repo
+## What this is
 
-A **working scaffold**, not a finished product:
+rednote-gate is a local MCP server for ONE throwaway RedNote account. Reads run directly. Writes go into a queue and wait for a human to click Approve on a local page. A worker in the same process then performs them, one at a time, inside a daily budget. Every attempt is logged.
 
-- `src/index.ts` — MCP stdio server, registers all 8 tools. **Done.**
-- `src/session.ts` — Playwright browser + persisted login (`storageState`). **Done.**
-- `src/login.ts` — one-time interactive QR login (`npm run login`). **Done.**
-- `src/rednote.ts` — the automation flows. **Structure done; the DOM selectors in the `SEL` object
-  are educated guesses and must be verified against the live site.** This is the real work.
+## Rules
 
-Everything compiles and the read tools should mostly work; the write flows (publish/draft/comment/
-reply) are written by reference and gated behind `RN_DRY_RUN=1` until verified.
+- Only ever use the dedicated throwaway account. Never a primary or brand account.
+- Never load a browser MCP, such as `@playwright/mcp`, in the same client session as rednote-gate. An agent with a browser could click Approve.
+- AI sessions never approve anything. Do not read `data/approval-url`, open the approval page or call its endpoints. Do not read or print `.session/state.json`. Approval is the human's job.
+- Do not add any path that posts without an approved queue item. Do not add retries after `unknown` or after a block.
+- Every DOM selector lives in the `SEL` object in `src/rednote.ts`. Nowhere else.
+- Nothing touches the live site unless a human is watching and following [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md).
+- Docs style: short sentences, plain English, no em dashes or en dashes.
 
-## Your job, in order
+## File map
 
-1. **Prototype to discover the truth.** Follow `PROTOTYPE-RUNSHEET.md`: connect the client to
-   Microsoft's `@playwright/mcp`, log in to the dedicated account, and run the test ladder headed.
-   For each flow, record the exact pages, element labels/roles, and waits (capture template is in that
-   file). This is how you learn what RedNote actually requires without guessing.
-2. **Harden into `src/rednote.ts`.** Replace each `VERIFY` selector in `SEL` with what the prototype
-   showed, and fix the step order / waits in each flow to match. Keep the dry-run gate, `typeHuman()`,
-   concurrency 1, and session persistence.
-3. **Turn on writes carefully.** Verify headed with `RN_DRY_RUN=1` (fields fill, nothing sends), watch
-   it, then `RN_DRY_RUN=0` for one real action at a time: publish → draft → comment → reply.
-4. **Then grow it** ("even more"): list my drafts, basic analytics on my own notes (likes/saves/
-   comments), scheduled/unattended posting (that's where a model-free deterministic path matters).
+| Path | What it is |
+| --- | --- |
+| `src/index.ts` | MCP stdio entry point. Registers the tools and starts the worker and the approval page. |
+| `src/queue.ts` | The queue. One JSON file per write. Image checks, copying and hashing. Status changes. Duplicate check. |
+| `src/ledger.ts` | Append-only `ledger.jsonl`. Budget and halt state are worked out from it. |
+| `src/worker.ts` | Takes the oldest approved item that fits the budget. Writes the ledger lines around each attempt. |
+| `src/approval.ts` | The approval page on 127.0.0.1. Token, Host and origin checks. Approve, Reject, Cancel, Resume. |
+| `src/rednote.ts` | The browser flows and the `SEL` selectors. The only file that knows RedNote's pages. |
+| `src/session.ts` | Playwright browser and the saved login session. |
+| `src/login.ts` | `npm run login`: the one-time QR login. |
+| `src/*.test.ts` | Offline tests. `npm test` builds and runs them. They never touch RedNote. |
+| `docs/landscape.md` | Research on other RedNote projects, checked 2026-10-06. Keep as is. |
+| `docs/friction.md` | Dated log of captchas, walls and warnings seen on RedNote. |
+| `PROTOTYPE-RUNSHEET.md` | How to verify each flow on the live site, with capture blocks. |
+| `data/` | Runtime data: queue, ledger, screenshots, approval link, lock. Git-ignored. |
+| `.session/state.json` | The saved login. A credential. Git-ignored. |
 
-## The one rule that matters most
+## How a write flows
 
-Use a **dedicated throwaway account**. This automates RedNote against its ToS; the account can be
-banned. Never point it at a primary/brand account. Space out writes. Run headed until you trust it.
+1. The agent calls a write tool, for example `rednote_create_post`.
+2. `queue.ts` checks the input. Images must be absolute paths to real JPEG, PNG or WebP files, 20 MB at most, 1 to 9 per note. It copies them into `data/queue/<id>/` and hashes them.
+3. If an identical item is already `pending`, `approved`, `posting`, `posted` or `unknown`, it returns that id. Otherwise it writes `data/queue/<id>.json` with status `pending` and returns the new id. No browser is involved.
+4. A human runs `npm run approve`, opens the page, reads the exact content and clicks Approve. The item becomes `approved`. Nothing is posted yet.
+5. Every 10 seconds the worker reads the ledger. If halted, it does nothing. Otherwise it takes the oldest item that was approved at least 30 seconds ago (the undo window). In live mode the item must also fit the budget.
+6. The worker writes an `attempt` line to the ledger, then marks the item `posting`. Only then does the browser start. This order means a crash still uses up budget and never leads to a second post.
+7. `rednote.ts` runs the flow and takes a screenshot. It clicks the final button only when `RN_DRY_RUN=0` and the item was approved.
+8. The item becomes `posted`, `dry_run`, `failed` (dry run error, or a live error before the final click) or `unknown` (live error after the final click). The worker writes a `result` line.
+9. If RedNote showed a captcha or a "too frequent" warning, a `blocked` line is written. The worker stops and reads are refused until a human clicks Resume.
+10. On the next start, any item still `posting` becomes `unknown` (live) or `failed` (dry run). A live one is never retried.
 
-## Acceptance test
+## How a read flows
 
-Each flow is "done" when it works **unattended** (no human clicking) against the live site from a
-cold start (fresh `npm start`, saved session), headless, with the selector centralised in `SEL`.
+The agent calls a read tool. It is refused if rednote-gate is halted, if another process holds the browser lock, or if a note URL has no `xsec_token`. Otherwise the browser opens the page and the tool returns the data. A captcha during a read halts rednote-gate the same way as during a write.
+
+## What is verified (as of 2026-10-06)
+
+- **Live site:** nothing. Every flow is "not yet verified" in the README table.
+- **Offline:** `npm test` covers the queue, ledger, worker and approval page without RedNote.
+- **Observed, logged out, through Firecrawl:** a bare note URL leads to a captcha, and the same note with `xsec_token` is readable. See [docs/friction.md](docs/friction.md).
+- **Research:** [docs/landscape.md](docs/landscape.md).
+
+The selectors in `SEL` came from reading other projects. None has been checked against the live site.
+
+## What to do next
+
+1. Make sure `npm run build` and `npm test` pass.
+2. Do the read ladder in [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md), headed, on the throwaway account.
+3. Do the write ladder: publish, draft, comment, reply. Dry run first each time. One live write per evening at most, days apart.
+4. After each flow: fill its capture block, fix `SEL` if needed, add any friction to [docs/friction.md](docs/friction.md), and update the "Last verified" table in the README with the date and result.
+5. Later, not decided yet: a selector repair step that proposes a `SEL` fix with evidence for human review. See the Stagehand section in [docs/landscape.md](docs/landscape.md). Decide only after every flow has been verified.
