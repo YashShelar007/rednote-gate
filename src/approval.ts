@@ -17,6 +17,8 @@ export interface ApprovalOptions {
   port: number; // 0 picks a free port (tests)
   limits: Limits;
   dryRun: boolean;
+  /** When set, the dashboard shows a settings form that writes this file. */
+  settingsFile?: string;
   /** Read tools the MCP server calls over 127.0.0.1 with the token in a header. */
   reads?: Record<string, (args: never) => Promise<unknown>>;
 }

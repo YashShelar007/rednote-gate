@@ -2,6 +2,7 @@
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import type { Limits } from "./ledger.js";
+import { loadSettings, type Settings } from "./settings.js";
 import { DATA_DIR } from "./session.js";
 
 export const DATA = DATA_DIR;
@@ -9,7 +10,11 @@ export const QUEUE = join(DATA, "queue");
 export const LEDGER = join(DATA, "ledger.jsonl");
 export const SHOTS = join(DATA, "screenshots");
 export const URL_FILE = join(DATA, "approval-url");
-export const DRY_RUN = process.env.RN_DRY_RUN !== "0";
+export const SETTINGS_FILE = join(DATA, "settings.json");
+
+/** Limits, mode and toggles as they are right now: the dashboard can change them at any time. */
+export const current = (): Settings => loadSettings(SETTINGS_FILE);
+export const limitsOf = (s: Settings): Limits => ({ daily: s.daily, likes: s.likes, commentGapMin: s.commentGapMin });
 
 /** A typo in a limit must stop the program, never mean "no limit". */
 function whole(name: string, fallback: number): number {
@@ -19,11 +24,10 @@ function whole(name: string, fallback: number): number {
   return n;
 }
 export const PORT = whole("RN_APPROVAL_PORT", 7317);
-export const LIMITS: Limits = { daily: whole("RN_DAILY_WRITES", 5), commentGapMin: whole("RN_COMMENT_GAP_MIN", 10), likes: whole("RN_DAILY_LIKES", 10) };
 
-/** A Mac notification. Fixed wording only: never note text or secrets. RN_NOTIFY=0 turns it off. */
+/** A Mac notification. Fixed wording only: never note text or secrets. Off in settings or RN_NOTIFY=0. */
 export function notify(message: string): void {
-  if (process.env.RN_NOTIFY === "0" || process.platform !== "darwin") return;
+  if (!current().notify || process.platform !== "darwin") return;
   execFile("osascript", ["-e", `display notification ${JSON.stringify(message)} with title "rednote-gate"`], () => {});
 }
 

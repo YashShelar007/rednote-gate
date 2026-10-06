@@ -9,7 +9,7 @@ import { recoverInterrupted } from "./queue.js";
 import { BlockedError, appendLedger, haltReason, readLedger } from "./ledger.js";
 import { startWorker } from "./worker.js";
 import { startApproval } from "./approval.js";
-import { DATA, DRY_RUN, LEDGER, LIMITS, PORT, QUEUE, SHOTS, URL_FILE, log, notify } from "./config.js";
+import { DATA, LEDGER, PORT, QUEUE, SETTINGS_FILE, SHOTS, URL_FILE, current, limitsOf, log, notify } from "./config.js";
 
 const IDLE_CLOSE_MS = 5 * 60_000; // close the browser window after 5 quiet minutes
 const STOPPED = "Stopped: RedNote showed a captcha or a warning. Check the account, then press Resume.";
@@ -64,19 +64,46 @@ async function main() {
     log(`${i.id} was cut off mid-attempt; marked ${i.status}.`);
   }
   const token = randomBytes(24).toString("hex");
-  const { server, port } = await startApproval({ dir: QUEUE, ledger: LEDGER, shots: SHOTS, token, port: PORT, limits: LIMITS, dryRun: DRY_RUN, reads });
+  // Getters, not values: the page and the worker see a settings change on their next request or tick.
+  const { server, port } = await startApproval({
+    dir: QUEUE,
+    ledger: LEDGER,
+    shots: SHOTS,
+    token,
+    port: PORT,
+    reads,
+    settingsFile: SETTINGS_FILE,
+    get limits() {
+      return limitsOf(current());
+    },
+    get dryRun() {
+      return current().dryRun;
+    },
+  });
   writeFileSync(URL_FILE, `http://127.0.0.1:${port}/?t=${token}\n`, { mode: 0o600 });
   chmodSync(URL_FILE, 0o600);
 
   const stopWorker = startWorker(
-    { dir: QUEUE, ledger: LEDGER, shots: SHOTS, limits: LIMITS, dryRun: DRY_RUN, idle: rn.browserIdle, run: (item, shot, dry) => rn.runWrite(item, QUEUE, shot, dry) },
+    {
+      dir: QUEUE,
+      ledger: LEDGER,
+      shots: SHOTS,
+      idle: rn.browserIdle,
+      run: (item, shot, dry) => rn.runWrite(item, QUEUE, shot, dry),
+      get limits() {
+        return limitsOf(current());
+      },
+      get dryRun() {
+        return current().dryRun;
+      },
+    },
     10_000,
     (outcome) => notify(haltReason(readLedger(LEDGER)) ? STOPPED : SAY[outcome] ?? `Finished: ${outcome}.`),
   );
   const idle = setInterval(() => {
     if (browserOpen() && rn.browserIdle() && Date.now() - rn.lastActive() > IDLE_CLOSE_MS) close().catch(() => {});
   }, 60_000);
-  log(`service up on 127.0.0.1:${port}, pid ${process.pid}. Mode: ${DRY_RUN ? "dry run" : "LIVE"}.`);
+  log(`service up on 127.0.0.1:${port}, pid ${process.pid}. Mode: ${current().dryRun ? "dry run" : "LIVE"} (changes in the dashboard apply live).`);
 
   const shutdown = async () => {
     clearInterval(idle);
