@@ -8,6 +8,10 @@ test("a note url from search is accepted", () => {
   assert.equal(parseNoteUrl(GOOD).noteId, "6aa4b5e80000000028037e0b");
 });
 
+test("overseas rednote.com note urls are accepted too", () => {
+  assert.equal(parseNoteUrl(GOOD.replace("www.xiaohongshu.com", "www.rednote.com")).noteId, "6aa4b5e80000000028037e0b");
+});
+
 test("a bare note url is refused, because it triggers a captcha", () => {
   assert.throws(() => parseNoteUrl("https://www.xiaohongshu.com/explore/6aa4b5e80000000028037e0b"), /xsec_token/);
 });

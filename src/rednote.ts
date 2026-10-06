@@ -7,14 +7,15 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "playwright";
-import { hasCookie, newPage, saveSession } from "./session.js";
+import { hasCookie, newPage, saveSession, site } from "./session.js";
 import { BlockedError, NotSentError } from "./ledger.js";
 import type { CommentArgs, Item, PostArgs, ReplyArgs } from "./queue.js";
 
 const TYPE_MIN = Number(process.env.RN_TYPE_MIN_MS || 40);
 const TYPE_MAX = Number(process.env.RN_TYPE_MAX_MS || 140);
-const SITE = "https://www.xiaohongshu.com";
-const CREATOR = "https://creator.xiaohongshu.com";
+const SITE = () => `https://www.${site()}`;
+const CREATOR = () => `https://creator.${site()}`;
+const HOSTS = ["www.xiaohongshu.com", "www.rednote.com"];
 
 export const SEL = {
   loggedIn: ".main-container .user .link-wrapper .channel", // VERIFY
@@ -40,11 +41,11 @@ const BLOCK_TEXT = ["安全验证", "Security Verification", "拖动箭头完成
 const rand = (min: number, max: number) => Math.floor(min + Math.random() * (max - min));
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
-/** Only www.xiaohongshu.com note links that carry an xsec_token. A bare link triggers a captcha. */
+/** Only RedNote note links that carry an xsec_token. A bare link triggers a captcha. */
 export function parseNoteUrl(raw: string): { noteId: string; url: string } {
   const u = new URL(raw);
   const m = u.pathname.match(/^\/(?:explore|discovery\/item)\/([0-9a-zA-Z]{8,32})$/);
-  if (u.protocol !== "https:" || u.hostname !== "www.xiaohongshu.com" || !m) {
+  if (u.protocol !== "https:" || !HOSTS.includes(u.hostname) || !m) {
     throw new Error("Not a RedNote note URL. Use a url returned by rednote_search.");
   }
   if (!u.searchParams.get("xsec_token")) {
@@ -97,8 +98,15 @@ async function assertNotBlocked(page: Page) {
   if (hit) throw new BlockedError(`RedNote showed "${hit}" at ${url.split("?")[0]}`);
 }
 
+/** The same page on this account's own domain: a login cookie only works on its own domain. */
+const onSite = (url: string) => {
+  const u = new URL(url);
+  u.hostname = `${u.hostname.split(".")[0]}.${site()}`;
+  return u.toString();
+};
+
 async function open(page: Page, url: string) {
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  await page.goto(onSite(url), { waitUntil: "domcontentloaded", timeout: 45_000 });
   await page.waitForTimeout(rand(1200, 2500));
   await assertNotBlocked(page);
   const problem = pageProblem(page.url());
@@ -130,7 +138,7 @@ async function readState<T>(page: Page, path: string[], ready: (v: T | undefined
 
 export function loginStatus() {
   return withPage(async (page) => {
-    await open(page, `${SITE}/explore`);
+    await open(page, `${SITE()}/explore`);
     const loggedIn = await page.locator(SEL.loggedIn).first().isVisible({ timeout: 5_000 }).catch(() => false);
     return { loggedIn, creatorSession: await hasCookie("galaxy_creator_session_id") };
   });
@@ -144,7 +152,7 @@ type Feed = { id: string; xsecToken: string; modelType?: string; noteCard?: { di
 
 export function search(keyword: string, limit = 10) {
   return withPage(async (page) => {
-    await open(page, `${SITE}/search_result?keyword=${encodeURIComponent(keyword)}&source=web_explore_feed`);
+    await open(page, `${SITE()}/search_result?keyword=${encodeURIComponent(keyword)}&source=web_explore_feed`);
     const feeds = await readState<Feed[]>(page, ["search", "feeds"], (v) => Array.isArray(v) && v.length > 0, 20_000);
     if (!feeds?.length) throw new Error("Search returned no notes. Check rednote_login_status: logged-out search shows a login wall.");
     return feeds
@@ -155,7 +163,7 @@ export function search(keyword: string, limit = 10) {
         title: f.noteCard?.displayTitle ?? "",
         author: f.noteCard?.user?.nickname ?? f.noteCard?.user?.nickName ?? "",
         likes: f.noteCard?.interactInfo?.likedCount ?? "",
-        url: `${SITE}/explore/${f.id}?xsec_token=${encodeURIComponent(f.xsecToken)}&xsec_source=pc_search`,
+        url: `${SITE()}/explore/${f.id}?xsec_token=${encodeURIComponent(f.xsecToken)}&xsec_source=pc_search`,
       }));
   });
 }
@@ -209,7 +217,7 @@ type Progress = { clicked: boolean };
 
 function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolean, p: Progress) {
   return withPage(async (page) => {
-    await open(page, `${CREATOR}/publish/publish?source=official`);
+    await open(page, `${CREATOR()}/publish/publish?source=official`);
     if (!new URL(page.url()).pathname.startsWith("/publish")) throw new Error("The creator site is not logged in. Run `npm run login` again.");
     await page.locator(SEL.imageTab).filter({ hasText: /^\s*上传图文\s*$/ }).first().click({ timeout: 15_000 });
     await page.waitForTimeout(rand(800, 1500));

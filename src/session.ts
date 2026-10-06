@@ -7,8 +7,23 @@ import { fileURLToPath } from "node:url";
 
 /** The repo root, so paths work no matter which folder the MCP client starts us from. */
 export const ROOT = fileURLToPath(new URL("..", import.meta.url));
+export const DATA_DIR = process.env.RN_DATA_DIR || join(ROOT, "data");
 const SESSION_PATH = process.env.RN_SESSION_PATH || join(ROOT, ".session", "state.json");
+const SITE_FILE = join(dirname(SESSION_PATH), "site");
 const HEADLESS = process.env.RN_HEADLESS === "1";
+
+/** Mainland accounts live on xiaohongshu.com, overseas accounts on rednote.com. Same backend, but
+ *  the login cookie only works on its own domain. `npm run login` records which one this account uses. */
+export type Site = "xiaohongshu.com" | "rednote.com";
+export function site(): Site {
+  const s = (process.env.RN_SITE || (existsSync(SITE_FILE) ? readFileSync(SITE_FILE, "utf8") : "xiaohongshu.com")).trim();
+  if (s !== "xiaohongshu.com" && s !== "rednote.com") throw new Error(`RN_SITE must be xiaohongshu.com or rednote.com, not "${s}".`);
+  return s;
+}
+export function saveSite(s: Site): void {
+  mkdirSync(dirname(SITE_FILE), { recursive: true, mode: 0o700 });
+  writeFileSync(SITE_FILE, `${s}\n`);
+}
 
 let browser: Browser | null = null;
 let context: Promise<BrowserContext> | null = null;

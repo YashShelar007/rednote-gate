@@ -7,13 +7,13 @@ import { randomBytes } from "node:crypto";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as rn from "./rednote.js";
-import { ROOT, acquireLock, close } from "./session.js";
+import { DATA_DIR, acquireLock, close } from "./session.js";
 import { enqueue, listItems, recoverInterrupted, type Args, type Tool } from "./queue.js";
 import { BlockedError, appendLedger, haltReason, readLedger, type Limits } from "./ledger.js";
 import { startWorker } from "./worker.js";
 import { startApproval } from "./approval.js";
 
-const DATA = process.env.RN_DATA_DIR || join(ROOT, "data");
+const DATA = DATA_DIR;
 const QUEUE = join(DATA, "queue");
 const LEDGER = join(DATA, "ledger.jsonl");
 const SHOTS = join(DATA, "screenshots");
@@ -52,7 +52,7 @@ function queue(tool: Tool, args: Args) {
   );
 }
 
-const noteUrl = z.string().url().refine((u) => { try { rn.parseNoteUrl(u); return true; } catch { return false; } }, "Use a note url returned by rednote_search: https://www.xiaohongshu.com/explore/<id>?xsec_token=...");
+const noteUrl = z.string().url().refine((u) => { try { rn.parseNoteUrl(u); return true; } catch { return false; } }, "Use a note url returned by rednote_search: https://www.xiaohongshu.com/explore/<id>?xsec_token=... (or www.rednote.com)");
 const title = z.string().min(1).refine((t) => rn.titleLength(t) <= 20, "Title is longer than RedNote's 20 (a CJK character counts 1, ASCII counts half).");
 const post = {
   title,
