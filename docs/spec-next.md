@@ -24,6 +24,8 @@ Build order: `topics`, `likes` (small, risk-first) in parallel with `cards` (sep
 
 ## Success criteria
 
+Status 2026-10-06: topics, likes, cards and concept met live; video met as a dry run, a live video post is still to come.
+
 - `topics`: a dry run with 2 topics and an emoji passes the read-back; one live post shows linked topics.
 - `likes`: a dry run finds the like button; one live like on a note, verified by the liked state.
 - `cards`: unit tests for escaping and sizing; a rendered card looks right by eye in light text on a solid background.
