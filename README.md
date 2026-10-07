@@ -2,6 +2,8 @@
 
 rednote-gate drives ONE dedicated throwaway RedNote (Xiaohongshu) account. Never point it at a primary or brand account. It works by browser automation, which is against RedNote's terms of service. The account can be rate limited or banned. Only use an account you can afford to lose.
 
+Website: https://yashshelar007.github.io/rednote-gate/
+
 It is a local MCP server for Claude Code, Claude Desktop and Codex. Reads run directly. Every write waits in a queue until a human clicks Approve on a local web page.
 
 ## Quick start

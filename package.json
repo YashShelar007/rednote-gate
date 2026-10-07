@@ -1,6 +1,6 @@
 {
   "name": "rednote-gate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for one throwaway RedNote (Xiaohongshu) account. Reads run directly; every write waits for a human Approve click.",
   "license": "MIT",
   "author": "Yash Shelar",

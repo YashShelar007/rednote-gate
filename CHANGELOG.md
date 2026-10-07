@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.0] - 2026-10-07
 
 ### Added
 - Dashboard: today's usage as meters on the approval page, and a Settings page for mode, daily limits, comment gap and notifications. Changes apply live, without a restart.
@@ -10,6 +10,8 @@
 - `rednote-gate doctor`: offline checks for Node, Chromium, login, settings, ledger and the service. It never contacts RedNote.
 - `rednote-gate connect` also prints the config for Claude Desktop and Codex.
 - `RN_HOME` sets where data and the login live.
+- Website: https://yashshelar007.github.io/rednote-gate/
+- End-to-end test in CI: a real MCP client starts the server and the background service and checks tools, queueing, the approval page and input checks.
 
 ### Changed
 - Data and login now live in `~/.rednote-gate` by default. A clone that already has `.session/` keeps using its own folder, so existing installs keep working. `RN_DATA_DIR` and `RN_SESSION_PATH` still override.
