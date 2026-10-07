@@ -26,7 +26,7 @@ async function setup(extra: Partial<Parameters<typeof startApproval>[0]> = {}) {
       req.end(body);
     });
   const form = (fields: Record<string, string>, origin = `http://127.0.0.1:${port}`) =>
-    call("POST", "/decide", { origin, "content-type": "application/x-www-form-urlencoded" }, new URLSearchParams(fields).toString());
+    call("POST", "/decide", { origin, "content-type": "application/x-www-form-urlencoded" }, new URLSearchParams({ mode: "dry_run", ...fields }).toString());
   return { ...o, port, call, form, close: () => server.close() };
 }
 
@@ -88,7 +88,7 @@ test("a POST from another website cannot approve", async () => {
 test("a real browser's own POST is accepted (Chrome may send Origin: null with Sec-Fetch-Site: same-origin)", async () => {
   const s = await setup();
   const { item } = enqueue(s.dir, "post_comment", { noteUrl: "u", text: "hi" });
-  const body = new URLSearchParams({ t: TOKEN, id: item.id, action: "approve" }).toString();
+  const body = new URLSearchParams({ t: TOKEN, id: item.id, mode: "dry_run", action: "approve" }).toString();
   const cross = await s.call("POST", "/decide", { origin: "null", "sec-fetch-site": "cross-site", "content-type": "application/x-www-form-urlencoded" }, body);
   assert.equal(cross.status, 403, "a null origin from another site is still refused");
   const own = await s.call("POST", "/decide", { origin: "null", "sec-fetch-site": "same-origin", "content-type": "application/x-www-form-urlencoded" }, body);

@@ -108,9 +108,9 @@ function content(item: Item, t: string): string {
   return `<dl>${note}${target}<dt>${item.tool === "reply_comment" ? "Your reply" : "Your comment"}</dt><dd class=text>${esc(a.text)}</dd></dl>`;
 }
 
-function card(item: Item, t: string, buttons: Array<[action: string, label: string]>, note = "", shot = false): string {
+function card(item: Item, t: string, mode: string, buttons: Array<[action: string, label: string]>, note = "", shot = false): string {
   const forms = buttons
-    .map(([action, label]) => `<form method=post action="/decide"><input type=hidden name=t value="${t}"><input type=hidden name=id value="${item.id}"><button name=action value="${action}" class="${action}" aria-label="${esc(label)}: ${esc(KIND[item.tool])} ${esc(item.id)}">${esc(label)}</button></form>`)
+    .map(([action, label]) => `<form method=post action="/decide"><input type=hidden name=t value="${t}"><input type=hidden name=id value="${item.id}"><input type=hidden name=mode value="${mode}"><button name=action value="${action}" class="${action}" aria-label="${esc(label)}: ${esc(KIND[item.tool])} ${esc(item.id)}">${esc(label)}</button></form>`)
     .join("");
   const last = item.history.at(-1)?.note;
   return `<article aria-labelledby="h-${item.id}"><header><h3 id="h-${item.id}">${KIND[item.tool]}</h3><span class="s ${item.status}">${STATUS[item.status]}</span></header>
@@ -182,6 +182,8 @@ ${num("commentGapMin", "Minutes between comments and replies", s.commentGapMin, 
 
 function page(o: ApprovalOptions): string {
   const t = o.token;
+  const dry = o.dryRun; // read once: the banner, the buttons and the forms must agree
+  const mode = dry ? "dry_run" : "live";
   const items = listItems(o.dir);
   const entries = readLedger(o.ledger);
   const now = new Date();
@@ -190,11 +192,11 @@ function page(o: ApprovalOptions): string {
   const likesUsed = live24.length - used;
   const halt = haltReason(entries);
   const waiting = (i: Item) => {
-    if (i.approvedFor !== (o.dryRun ? "dry_run" : "live")) {
+    if (i.approvedFor !== mode) {
       const was = i.approvedFor === "live" ? "a live run" : "a dry run";
-      return `Approved for ${was}, but the server now runs ${o.dryRun ? "dry" : "live"}. It will not run. Cancel it and approve again.`;
+      return `Approved for ${was}, but the server now runs ${dry ? "dry" : "live"}. It will not run. Cancel it and approve again.`;
     }
-    if (o.dryRun) return "Runs about 30 seconds after approval. Dry runs spend no budget.";
+    if (dry) return "Runs about 30 seconds after approval. Dry runs spend no budget.";
     const b = budgetCheck(entries, i.tool, now, o.limits);
     if (b.ok) return "Runs about 30 seconds after approval.";
     if (!Number.isFinite(b.retryAt.getTime())) return `Will not run: ${b.reason}.`;
@@ -202,11 +204,11 @@ function page(o: ApprovalOptions): string {
     const why = b.reason.startsWith("one comment") ? "Comments and replies go out at least 10 minutes apart." : `The ${b.reason.replace(" reached", "")} is reached.`;
     return `Sends automatically at ${at}. ${why}`;
   };
-  const approveLabel = (i: Item) => (o.dryRun ? "Approve dry run" : APPROVE_LIVE[i.tool]);
-  const pending = items.filter((i) => i.status === "pending").map((i) => card(i, t, [["approve", approveLabel(i)], ["reject", "Reject"]]));
-  const approved = items.filter((i) => i.status === "approved").map((i) => card(i, t, [["cancel", "Cancel before it runs"]], waiting(i)));
+  const approveLabel = (i: Item) => (dry ? "Approve dry run" : APPROVE_LIVE[i.tool]);
+  const pending = items.filter((i) => i.status === "pending").map((i) => card(i, t, mode, [["approve", approveLabel(i)], ["reject", "Reject"]]));
+  const approved = items.filter((i) => i.status === "approved").map((i) => card(i, t, mode, [["cancel", "Cancel before it runs"]], waiting(i)));
   const hasShot = (i: Item) => !!o.shots && existsSync(join(o.shots, `${i.id}.png`));
-  const history = items.filter((i) => !["pending", "approved"].includes(i.status)).reverse().slice(0, 20).map((i) => card(i, t, [], "", hasShot(i)));
+  const history = items.filter((i) => !["pending", "approved"].includes(i.status)).reverse().slice(0, 20).map((i) => card(i, t, mode, [], "", hasShot(i)));
   const busy = items.some((i) => i.status === "approved" || i.status === "posting");
   const likeCap = o.limits.likes ?? 10;
   const slot = budgetCheck(entries, "create_post", now, o.limits);
@@ -214,7 +216,7 @@ function page(o: ApprovalOptions): string {
   return `${HEAD("Approvals", busy)}
 <body><a class=skip href="#queue">Skip to the queue</a><main>
 <h1>Approve writes to RedNote</h1>${nav(o, "queue")}
-<div class="mode ${o.dryRun ? "dry" : "live"}">${o.dryRun ? "<b>Dry run.</b> Approved items fill in the form on RedNote but are never published or sent." : "<b>Live.</b> Approved items are published or sent from the account about 30 seconds after you approve."}
+<div class="mode ${dry ? "dry" : "live"}">${dry ? "<b>Dry run.</b> Approved items fill in the form on RedNote but are never published or sent." : "<b>Live.</b> Approved items are published or sent from the account about 30 seconds after you approve."}
 <div class=meters><span>Writes</span><meter min=0 max="${o.limits.daily}" value="${used}" aria-label="Writes used in the last 24 hours"></meter><span>${used} of ${o.limits.daily}</span><span>Likes</span><meter min=0 max="${likeCap}" value="${likesUsed}" aria-label="Likes used in the last 24 hours"></meter><span>${likesUsed} of ${likeCap}</span></div>
 <p class=budget>Live writes and likes in the last 24 hours.${next} <a href="/?t=${t}">Refresh</a></p></div>
 ${halt ? `<div class=halt role=alert><b>Stopped.</b> RedNote showed: ${esc(halt)}. Nothing runs until you resume. Open the RedNote app and check the account first.<form method=post action="/resume"><input type=hidden name=t value="${t}"><div class=row><button class=approve>Resume</button></div></form></div>` : ""}
@@ -311,11 +313,14 @@ async function handle(o: ApprovalOptions, port: number, req: IncomingMessage, re
   if (url.pathname === "/decide") {
     const action = ACTIONS[form.get("action") ?? ""];
     const id = form.get("id") ?? "";
+    const mode = o.dryRun ? "dry_run" : "live";
     try {
       if (!action || readItem(o.dir, id).status !== action.from) return send(409, "That item is no longer in a state where this button applies. Refresh.");
       const approving = action.to === "approved";
-      const note = approving ? (o.dryRun ? "approved for a dry run" : "approved to run live") : `${form.get("action")} on the approval page`;
-      transition(o.dir, id, action.to, note, new Date(), approving ? { approvedFor: o.dryRun ? "dry_run" : "live" } : {});
+      // An Approve click counts only for the mode its page showed: the mode may have changed since.
+      if (approving && form.get("mode") !== mode) return send(409, "The mode changed since this page loaded. Refresh and check before approving.");
+      const note = approving ? (mode === "dry_run" ? "approved for a dry run" : "approved to run live") : `${form.get("action")} on the approval page`;
+      transition(o.dir, id, action.to, note, new Date(), approving ? { approvedFor: mode } : {});
     } catch {
       return send(400, "Bad request.");
     }

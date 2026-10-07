@@ -20,6 +20,7 @@
 ### Security and safety
 - New data folders are created owner-only (0700).
 - `rednote-gate stop` only signals the pid in the lock file after checking it is the rednote-gate service, so a stale lock never stops another program.
+- An Approve click counts only for the mode its page showed. If the mode changed since the page loaded (another tab, `settings.json`), the click is refused and the page asks for a refresh, so "Approve dry run" can never become a live approval.
 
 ## [1.0.0] - 2026-10-06
 
