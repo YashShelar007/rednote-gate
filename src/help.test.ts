@@ -48,3 +48,12 @@ test("both writing workflows set the AI label, because Claude writes the text in
     assert.match(p ?? "", /aiGenerated: true/, name);
   }
 });
+
+test("the MCP Registry entry matches the npm package it points to", () => {
+  const pkg = JSON.parse(source("../package.json"));
+  const entry = JSON.parse(source("../server.json"));
+  assert.equal(entry.name, pkg.mcpName);
+  assert.equal(entry.version, pkg.version);
+  assert.deepEqual(entry.packages.map((p: { identifier: string; version: string }) => [p.identifier, p.version]), [[pkg.name, pkg.version]]);
+  assert.ok(entry.description.length <= 100, "the registry allows 100 characters");
+});

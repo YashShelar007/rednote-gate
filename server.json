@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.YashShelar007/rednote-gate",
+  "title": "rednote-gate",
+  "description": "MCP server for one throwaway RedNote account. Every write waits for a human Approve click.",
+  "repository": {
+    "url": "https://github.com/YashShelar007/rednote-gate",
+    "source": "github"
+  },
+  "websiteUrl": "https://yashshelar007.github.io/rednote-gate/",
+  "version": "1.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "rednote-gate",
+      "version": "1.1.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

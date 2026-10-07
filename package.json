@@ -1,7 +1,8 @@
 {
   "name": "rednote-gate",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "MCP server for one throwaway RedNote (Xiaohongshu) account. Reads run directly; every write waits for a human Approve click.",
+  "mcpName": "io.github.YashShelar007/rednote-gate",
   "license": "MIT",
   "author": "Yash Shelar",
   "repository": {
