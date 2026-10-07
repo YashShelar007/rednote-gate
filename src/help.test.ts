@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CATALOGUE, helpText } from "./help.js";
+import { CATALOGUE, helpText, usage } from "./help.js";
 
 const source = (file: string) => readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
 const registered = (kind: "Tool" | "Prompt") => [...source("index.ts").matchAll(new RegExp(`register${kind}\\(\\s*"([a-z_]+)"`, "g"))].map((m) => m[1]);
@@ -22,4 +22,21 @@ test("help shows the mode and what is left of today's budget", () => {
   assert.match(text, /9 of 10 likes left/);
   assert.match(text, /rednote_create_post/);
   assert.match(helpText({ version: "1.0.0", site: "xiaohongshu.com", dryRun: true, writesUsed: 0, likesUsed: 0, limits: { daily: 5, commentGapMin: 10 } }), /DRY RUN/);
+});
+
+test("usage counts live writes and likes from the last 24 hours only", () => {
+  const now = new Date("2026-10-07T12:00:00Z");
+  const at = (h: number) => new Date(now.getTime() - h * 3600_000).toISOString();
+  const entries = [
+    { at: at(1), event: "attempt" as const, tool: "create_post" as const, dryRun: false },
+    { at: at(2), event: "attempt" as const, tool: "post_comment" as const, dryRun: false },
+    { at: at(3), event: "attempt" as const, tool: "like_note" as const, dryRun: false },
+    { at: at(4), event: "attempt" as const, tool: "create_post" as const, dryRun: true },
+    { at: at(30), event: "attempt" as const, tool: "create_post" as const, dryRun: false },
+  ];
+  const u = usage(entries, { daily: 5, commentGapMin: 10 }, now);
+  assert.equal(u.writesUsed, 2);
+  assert.equal(u.likesUsed, 1);
+  assert.equal(u.nextWrite, undefined);
+  assert.ok(usage(entries, { daily: 2, commentGapMin: 10 }, now).nextWrite, "no write left, so it says when the next one opens");
 });

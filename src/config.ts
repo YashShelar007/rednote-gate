@@ -1,5 +1,6 @@
 // Settings shared by the MCP server and the service. Read once from the environment.
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Limits } from "./ledger.js";
 import { loadSettings, type Settings } from "./settings.js";
@@ -24,6 +25,20 @@ function whole(name: string, fallback: number): number {
   return n;
 }
 export const PORT = whole("RN_APPROVAL_PORT", 7317);
+export const { version: VERSION } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+
+/** The running service's approval page, found through the link it wrote, or null if it does not answer. */
+export type Service = { url: URL; token: string; dryRun: boolean };
+export async function probeService(): Promise<Service | null> {
+  try {
+    const url = new URL(readFileSync(URL_FILE, "utf8").trim());
+    const token = url.searchParams.get("t") ?? "";
+    const r = await fetch(new URL(`/health?t=${token}`, url), { signal: AbortSignal.timeout(2_000) });
+    return r.ok ? { url, token, dryRun: ((await r.json()) as { dryRun: boolean }).dryRun } : null;
+  } catch {
+    return null;
+  }
+}
 
 /** A Mac notification. Fixed wording only: never note text or secrets. Off in settings or RN_NOTIFY=0. */
 export function notify(message: string): void {
