@@ -120,9 +120,10 @@ describe("rednote-gate over MCP, with the real background service", { timeout: 1
   writeFileSync(png, Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"));
   const refused: Array<[name: string, tool: string, args: Record<string, unknown>, why: RegExp]> = [
     ["a bare note url without xsec_token", "rednote_post_comment", { url: NOTE.split("?")[0], text: "hi" }, /Use a note url returned by rednote_search/],
-    ["a title longer than RedNote's 20", "rednote_create_post", { title: "a".repeat(41), body: "fine", images: [png] }, /longer than RedNote's 20/],
-    ["a # in a post body", "rednote_create_post", { title: "ok", body: "see #topic", images: [png] }, /Put hashtags in topics/],
-    ["a relative image path", "rednote_create_post", { title: "ok", body: "fine", images: ["pics/a.png"] }, /Image path must be absolute/],
+    ["a title longer than RedNote's 20", "rednote_create_post", { title: "a".repeat(41), body: "fine", images: [png], aiGenerated: false }, /longer than RedNote's 20/],
+    ["a # in a post body", "rednote_create_post", { title: "ok", body: "see #topic", images: [png], aiGenerated: false }, /Put hashtags in topics/],
+    ["a relative image path", "rednote_create_post", { title: "ok", body: "fine", images: ["pics/a.png"], aiGenerated: false }, /Image path must be absolute/],
+    ["a post that does not say whether the AI wrote it", "rednote_create_post", { title: "ok", body: "fine", images: [png] }, /aiGenerated/],
   ];
   for (const [name, tool, args, why] of refused) {
     test(`refuses ${name}`, async () => {

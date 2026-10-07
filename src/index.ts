@@ -92,10 +92,10 @@ const post = {
     .describe("note body; line breaks and emoji are kept; no # here"),
   topics: z.array(topic).max(5).optional().describe("up to 5 topics without #, added as RedNote topics at the end of the body"),
   images: z.array(z.string()).min(1).max(9).describe("absolute paths to JPEG, PNG or WebP files, in posting order; the first is the cover"),
+  // Required, so a model can never leave it out and post AI-written text unlabeled by accident.
   aiGenerated: z
     .boolean()
-    .optional()
-    .describe("true if you wrote or polished the title or body: RedNote's own AI label (笔记含AI合成内容) is then set. Omit only when the user gave you the exact text."),
+    .describe("Required. true if you wrote or polished the title or body: RedNote's own AI label (笔记含AI合成内容) is then set. false only when the user gave you the exact text."),
 };
 
 const server = new McpServer({ name: "rednote-gate", version: VERSION });
