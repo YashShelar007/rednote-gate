@@ -9,7 +9,7 @@ export function resolveHome(env: Record<string, string | undefined>, root: strin
   const home = env.RN_HOME ? resolve(env.RN_HOME) : exists(join(root, ".session")) ? root : join(userHome, ".rednote-gate");
   return {
     home,
-    dataDir: env.RN_DATA_DIR || join(home, "data"),
-    sessionPath: env.RN_SESSION_PATH || join(home, ".session", "state.json"),
+    dataDir: env.RN_DATA_DIR ? resolve(env.RN_DATA_DIR) : join(home, "data"),
+    sessionPath: env.RN_SESSION_PATH ? resolve(env.RN_SESSION_PATH) : join(home, ".session", "state.json"),
   };
 }
