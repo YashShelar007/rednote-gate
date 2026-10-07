@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { request } from "node:http";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { enqueue, readItem } from "./queue.js";
@@ -150,6 +150,49 @@ test("a queued video is served for preview, and only from the queue", async () =
   assert.equal(ok.status, 200);
   assert.equal(ok.headers["content-type"], "video/mp4");
   assert.equal((await s.call("GET", `/media/..%2Fledger?t=${TOKEN}`)).status, 404);
+  s.close();
+});
+
+const settingsForm = (s: Awaited<ReturnType<typeof setup>>, fields: Record<string, string>, origin = `http://127.0.0.1:${s.port}`) =>
+  s.call("POST", "/settings", { origin, "content-type": "application/x-www-form-urlencoded" }, new URLSearchParams({ t: TOKEN, ...fields }).toString());
+const base = { mode: "dry", daily: "5", likes: "10", commentGapMin: "10", notify: "on", openApproval: "on" };
+
+test("the dashboard shows settings only when it has a settings file", async () => {
+  const plain = await setup();
+  assert.equal((await plain.call("GET", `/settings?t=${TOKEN}`)).status, 404);
+  assert.doesNotMatch((await plain.call("GET", `/?t=${TOKEN}`)).body, /href="\/settings/);
+  plain.close();
+  const s = await setup({ settingsFile: join(mkdtempSync(join(tmpdir(), "rng-set-")), "settings.json") });
+  const queue = (await s.call("GET", `/?t=${TOKEN}`)).body;
+  assert.match(queue, /<meter/);
+  assert.match(queue, /href="\/settings\?t=/);
+  const settings = await s.call("GET", `/settings?t=${TOKEN}`);
+  assert.match(settings.body, /name="daily"[^>]*max="20"/);
+  assert.doesNotMatch(settings.body, /http-equiv=refresh/, "a form page never reloads under the user");
+  s.close();
+});
+
+test("settings save from the dashboard, within the hard maximums", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "rng-set-")), "settings.json");
+  const s = await setup({ settingsFile: file });
+  const ok = await settingsForm(s, { ...base, daily: "8" });
+  assert.equal(ok.status, 303);
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).daily, 8);
+  const tooMany = await settingsForm(s, { ...base, daily: "99" });
+  assert.equal(tooMany.status, 303);
+  assert.match(String(tooMany.headers.location), /error=/);
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).daily, 8, "not saved");
+  assert.equal((await settingsForm(s, { ...base, daily: "9" }, "https://evil.example")).status, 403);
+  s.close();
+});
+
+test("going live from the dashboard needs the confirmation tick", async () => {
+  const file = join(mkdtempSync(join(tmpdir(), "rng-set-")), "settings.json");
+  const s = await setup({ settingsFile: file });
+  await settingsForm(s, { ...base, mode: "live" });
+  assert.equal(existsSync(file) ? JSON.parse(readFileSync(file, "utf8")).dryRun : undefined, undefined, "refused without the tick");
+  await settingsForm(s, { ...base, mode: "live", confirmLive: "on" });
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).dryRun, false);
   s.close();
 });
 

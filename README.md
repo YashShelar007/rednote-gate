@@ -210,6 +210,8 @@ The page shows:
 
 It opens by itself when Claude queues a write (at most once a minute). `rednote_open_approval_page` opens it on request.
 
+The page also shows today's usage as meters, and links to **Settings**: mode (dry run or live, with a confirmation tick to go live), writes per day, likes per day, minutes between comments, and notifications. Settings are saved to `data/settings.json` and apply to the next item that runs, without a restart. They cannot go past the hard maximums: 20 writes, 50 likes, 2 minutes between comments.
+
 Buttons:
 
 | Button | Does |
@@ -298,6 +300,8 @@ If a line is not valid JSON, writes stop until you fix or remove that line. A bu
 | `RN_TYPE_MAX_MS` | `140` | longest delay per typed character |
 
 Limits and the port must be whole numbers. A typo stops the server with an error instead of turning a limit off.
+
+The dashboard's Settings page writes `data/settings.json`, which wins over these variables for limits, mode and notifications.
 
 Set these in your MCP client's env block. `npm run login` and `npm run approve` read them from your shell. If you change `RN_DATA_DIR` or `RN_SESSION_PATH` in the client, export the same values before running those commands.
 
