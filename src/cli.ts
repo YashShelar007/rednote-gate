@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { statusLines, usage } from "./help.js";
 import { haltReason, readLedger } from "./ledger.js";
 import { saveSettings } from "./settings.js";
-import { DATA, LEDGER, SETTINGS_FILE, VERSION, current, limitsOf, probeService } from "./config.js";
+import { DATA, LEDGER, PORT, SETTINGS_FILE, VERSION, current, limitsOf, probeService, type Service } from "./config.js";
 import { DATA_DIR, HOME, SESSION_PATH, alive, hasSavedSession, site } from "./session.js";
 
 const COMMANDS = ["setup", "login", "connect", "live", "dry", "stop", "approve", "status", "doctor", "help"] as const;
@@ -99,6 +99,20 @@ args = ${JSON.stringify(launch.slice(1))}${toml.length ? `\nenv = { ${toml.join(
   return ok;
 }
 
+/** Our service, "other" when the port answers but not through our link (a service with another home), or null. */
+async function findService(): Promise<Service | "other" | null> {
+  const up = await probeService();
+  if (up) return up;
+  try {
+    await fetch(`http://127.0.0.1:${PORT}/health`, { signal: AbortSignal.timeout(2_000) });
+    return "other";
+  } catch {
+    return null;
+  }
+}
+// ponytail: catches a mismatch only while the other service runs; a stopped one reads its own settings on start.
+const OTHER = `A rednote-gate service with a different data folder is running on port ${PORT}. This command uses ${DATA}, so it cannot see or change that service. Run it with the same RN_HOME as your MCP client, or use Settings on the approval page.`;
+
 /** The lock holds the pid of whoever drives the browser: the service, or a login. */
 function lockPid(): number | null {
   try {
@@ -117,6 +131,7 @@ function isService(pid: number): boolean {
 
 async function stop(): Promise<boolean> {
   const pid = lockPid();
+  if (!pid && (await findService()) === "other") return console.error(OTHER), false;
   if (!pid) return console.log("The rednote-gate service is not running."), true;
   if (!isService(pid)) return console.log(`The lock belongs to pid ${pid}, which is not the rednote-gate service (a login, or a stale lock). Not stopping it.`), false;
   process.kill(pid, "SIGTERM");
@@ -134,26 +149,27 @@ async function ask(question: string): Promise<boolean> {
 }
 
 async function setMode(live: boolean, yes: boolean): Promise<boolean> {
+  if ((await findService()) === "other") return console.error(OTHER), false;
   if (live) {
     console.log("Live mode: each item you approve is published, sent or liked from the RedNote account. Nothing goes out without your Approve click. Approvals given in dry run do not run live.");
     if (!yes && !(await ask("Switch to live? [y/N] "))) return console.log("Still in dry run."), false;
   }
   mkdirSync(DATA, { recursive: true, mode: 0o700 });
   const s = saveSettings(SETTINGS_FILE, { dryRun: !live });
-  console.log(s.dryRun ? "rednote-gate is in dry run: approved items fill the form but never publish." : "rednote-gate is LIVE: approved items will be published.");
+  console.log(`${s.dryRun ? "rednote-gate is in dry run: approved items fill the form but never publish." : "rednote-gate is LIVE: approved items will be published."} Saved in ${SETTINGS_FILE}.`);
   return stop();
 }
 
 async function status(): Promise<boolean> {
   const s = current();
   const login = hasSavedSession() ? `saved (${site()})` : 'none yet. Run "rednote-gate login".';
-  const up = await probeService();
+  const up = await findService();
   const pid = lockPid();
   console.log(
     [
       ...statusLines({ version: VERSION, site: site(), dryRun: s.dryRun, limits: limitsOf(s), ...usage(readLedger(LEDGER), limitsOf(s), new Date()) }),
       `Login: ${login}`,
-      `Service: ${up ? `running on ${up.url.origin}${pid ? `, pid ${pid}` : ""}` : "not running. It starts with the first rednote tool call."}`,
+      `Service: ${up === "other" ? OTHER : up ? `running on ${up.url.origin}${pid ? `, pid ${pid}` : ""}` : "not running. It starts with the first rednote tool call."}`,
       `Data: ${DATA}`,
     ].join("\n"),
   );
@@ -186,7 +202,8 @@ async function doctor(): Promise<boolean> {
       return `${entries.length} lines, not halted`;
     }],
     ["Service", async () => {
-      const up = await probeService();
+      const up = await findService();
+      if (up === "other") throw new Error(OTHER);
       if (up) return `running on ${up.url.origin}`;
       const pid = lockPid();
       if (pid && isService(pid)) throw new Error(`pid ${pid} holds the lock but its page does not answer. Run "rednote-gate stop".`);
@@ -236,7 +253,8 @@ async function main(argv: string[]): Promise<number | undefined> {
     case "stop":
       return done(await stop());
     case "approve": {
-      const up = await probeService();
+      const up = await findService();
+      if (up === "other") return console.error(OTHER), 1;
       if (!up) return console.error("The approval page is not running. It starts with the first rednote tool call."), 1;
       console.log(up.url.toString());
       return 0;

@@ -33,6 +33,8 @@ test("RN_DATA_DIR and RN_SESSION_PATH still override their own path", () => {
   assert.equal(p.home, "/tmp/rg");
   assert.equal(p.dataDir, "/d");
   assert.equal(p.sessionPath, "/s/state.json");
+  const rel = resolveHome({ RN_DATA_DIR: "d", RN_SESSION_PATH: "s/state.json" }, ROOT, USER, none);
+  assert.deepEqual([rel.dataDir, rel.sessionPath], [resolve("d"), resolve("s/state.json")], "relative paths become absolute, like RN_HOME");
 });
 
 test("an empty RN_HOME counts as unset", () => {

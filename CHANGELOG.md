@@ -21,6 +21,9 @@
 - New data folders are created owner-only (0700).
 - `rednote-gate stop` only signals the pid in the lock file after checking it is the rednote-gate service, so a stale lock never stops another program.
 - An Approve click counts only for the mode its page showed. If the mode changed since the page loaded (another tab, `settings.json`), the click is refused and the page asks for a refresh, so "Approve dry run" can never become a live approval.
+- `rednote-gate live`, `dry`, `status`, `stop`, `approve` and `doctor` notice when the running service uses a different data folder (another install, or `RN_HOME` set only in your MCP client). `live` and `dry` then refuse instead of saving a mode that service never reads, and both say where they saved.
+- Relative `RN_DATA_DIR` and `RN_SESSION_PATH` are made absolute, like `RN_HOME`.
+- Every `npm pack` and `npm publish` starts from an empty `dist/`, so no stale file ships. CI checkouts no longer keep the GitHub token.
 
 ## [1.0.0] - 2026-10-06
 
