@@ -1,6 +1,10 @@
 # rednote-gate
 
+[![npm version](https://img.shields.io/npm/v/rednote-gate)](https://www.npmjs.com/package/rednote-gate) [![License: MIT](https://img.shields.io/github/license/YashShelar007/rednote-gate)](LICENSE) [![CI](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml)
+
 rednote-gate drives ONE dedicated throwaway RedNote (Xiaohongshu) account. Never point it at a primary or brand account. It works by browser automation, which is against RedNote's terms of service. The account can be rate limited or banned. Only use an account you can afford to lose.
+
+<img src="site/assets/approval-light.png" width="380" alt="The approval page in dry run mode. Meters show 1 of 5 writes and 2 of 10 likes used in the last 24 hours. Below them, a photo note titled Sunrise hike above the clouds waits for a decision, with its body, three topics, two images, and the buttons Approve dry run and Reject.">
 
 Website: https://yashshelar007.github.io/rednote-gate/
 
