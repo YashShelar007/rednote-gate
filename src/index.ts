@@ -179,7 +179,7 @@ server.registerTool(
 );
 server.registerTool(
   "rednote_help",
-  { description: "What rednote-gate can do: every tool and workflow, the current mode, and what is left of today's budget. Never touches RedNote." },
+  { description: "What rednote-gate can do: every tool and prompt, the current mode, and what is left of today's budget. Never touches RedNote." },
   () => {
     const s = current();
     return text(helpText({ version: VERSION, site: site(), dryRun: s.dryRun, limits: limitsOf(s), ...usage(readLedger(LEDGER), limitsOf(s), new Date()) }));
@@ -197,7 +197,7 @@ server.registerTool(
     ),
 );
 
-// ─── Workflows: show up as slash commands in Claude Code ────────────────────────────────────
+// ─── Prompts: Claude Code shows them as slash commands ──────────────────────────────────────
 const say = (t: string) => ({ messages: [{ role: "user" as const, content: { type: "text" as const, text: t } }] });
 const RULES =
   "Rules: a title is one line and at most 20 (a CJK character counts 1, ASCII counts half). Comments and replies are one line. " +
@@ -268,7 +268,7 @@ server.registerPrompt(
 );
 server.registerPrompt(
   "help",
-  { title: "What can rednote-gate do?", description: "Every tool and workflow, your current mode, and what is left of today's budget." },
+  { title: "What can rednote-gate do?", description: "Every tool and prompt, your current mode, and what is left of today's budget." },
   () => say("Call rednote_help and present it to the user in a short, friendly overview. Keep the tool names, the mode and today's budget exactly as given."),
 );
 server.registerPrompt(

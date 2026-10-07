@@ -58,7 +58,7 @@ const HELP = `rednote-gate ${VERSION}: an MCP server for one throwaway RedNote a
 
 Usage: rednote-gate [command]
 
-  (none)       run the MCP server on stdio (this is what MCP clients start)
+  (none)       run the MCP server on stdio (this is what your MCP host starts)
   setup        install Chromium, log in, then connect
   login        QR login for the throwaway account
   connect      add rednote-gate to Claude Code; print config for Claude Desktop and Codex
@@ -83,7 +83,7 @@ function connect(): boolean {
   const env = passEnv();
   const got = spawnSync("claude", ["mcp", "get", "rednote-gate"], { stdio: "ignore" });
   let ok = true;
-  if (got.error) console.log("Claude Code CLI not found. Add rednote-gate to your client by hand:");
+  if (got.error) console.log("Claude Code CLI not found. Add rednote-gate to your MCP host by hand:");
   else if (got.status === 0) console.log('rednote-gate is already connected to Claude Code. To re-add it, run "claude mcp remove rednote-gate -s user" first.');
   else if ((ok = run("claude", connectArgs(launch, env)))) console.log("Connected to Claude Code for all your projects. Open a new Claude Code session.");
   const desktop = { mcpServers: { "rednote-gate": { command: launch[0], args: launch.slice(1), ...(Object.keys(env).length && { env }) } } };
@@ -111,7 +111,7 @@ async function findService(): Promise<Service | "other" | null> {
   }
 }
 // ponytail: catches a mismatch only while the other service runs; a stopped one reads its own settings on start.
-const OTHER = `A rednote-gate service with a different data folder is running on port ${PORT}. This command uses ${DATA}, so it cannot see or change that service. Run it with the same RN_HOME as your MCP client, or use Settings on the approval page.`;
+const OTHER = `A rednote-gate service with a different data folder is running on port ${PORT}. This command uses ${DATA}, so it cannot see or change that service. Run it with the same RN_HOME as your MCP host, or use Settings on the approval page.`;
 
 /** The lock holds the pid of whoever drives the browser: the service, or a login. */
 function lockPid(): number | null {

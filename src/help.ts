@@ -1,4 +1,4 @@
-// What rednote-gate can do, in one place, for the rednote_help tool and the help slash command.
+// What rednote-gate can do, in one place, for the rednote_help tool and the help prompt.
 // help.test.ts keeps this list identical to what index.ts registers.
 import { budgetCheck, type Entry as LedgerEntry, type Limits } from "./ledger.js";
 
@@ -21,7 +21,7 @@ export const CATALOGUE = {
     { name: "rednote_open_approval_page", kind: "local", what: "open the approval page in your browser" },
     { name: "rednote_help", kind: "local", what: "this overview" },
   ],
-  workflows: [
+  prompts: [
     { name: "post_from_concept", what: "research a concept, write an original note, make cards, queue it" },
     { name: "post_photos", what: "write a note around your photos and queue it" },
     { name: "reply_to_comments", what: "draft replies to the comments worth answering on a note" },
@@ -78,8 +78,8 @@ export function helpText(s: HelpStatus): string {
     "On this computer only, never touches RedNote:",
     list("local"),
     "",
-    "Workflows (in Claude Code: /rednote-gate:<name>):",
-    CATALOGUE.workflows.map((w) => `- ${w.name}: ${w.what}`).join("\n"),
+    "Prompts (slash commands in Claude Code: /rednote-gate:<name>):",
+    CATALOGUE.prompts.map((p) => `- ${p.name}: ${p.what}`).join("\n"),
     "",
     "Try asking:",
     '- "Research 期末周自习 on RedNote and give me 3 post ideas."',

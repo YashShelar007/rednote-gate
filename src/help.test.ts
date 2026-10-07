@@ -10,8 +10,14 @@ test("help lists exactly the tools the server registers", () => {
   assert.deepEqual(CATALOGUE.tools.map((t) => t.name).sort(), registered("Tool").sort());
 });
 
-test("help lists exactly the workflows the server registers", () => {
-  assert.deepEqual(CATALOGUE.workflows.map((w) => w.name).sort(), registered("Prompt").sort());
+test("help lists exactly the prompts the server registers", () => {
+  assert.deepEqual(CATALOGUE.prompts.map((p) => p.name).sort(), registered("Prompt").sort());
+});
+
+test("help and the server call MCP prompts prompts, not workflows", () => {
+  const text = helpText({ version: "1.0.0", site: "rednote.com", dryRun: true, writesUsed: 0, likesUsed: 0, limits: { daily: 5, commentGapMin: 10 } });
+  assert.match(text, /^Prompts \(slash commands in Claude Code: \/rednote-gate:<name>\):$/m);
+  assert.doesNotMatch(text + source("index.ts"), /workflow/i);
 });
 
 test("help shows the mode and what is left of today's budget", () => {
@@ -41,7 +47,7 @@ test("usage counts live writes and likes from the last 24 hours only", () => {
   assert.ok(usage(entries, { daily: 2, commentGapMin: 10 }, now).nextWrite, "no write left, so it says when the next one opens");
 });
 
-test("both writing workflows set the AI label, because Claude writes the text in both", () => {
+test("both writing prompts set the AI label, because Claude writes the text in both", () => {
   const prompts = source("index.ts").split("server.registerPrompt(").slice(1);
   for (const name of ["post_photos", "post_from_concept"]) {
     const p = prompts.find((x) => x.includes(`"${name}"`));
