@@ -5,48 +5,36 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { execFile, spawn } from "node:child_process";
-import { mkdirSync, openSync, readFileSync } from "node:fs";
+import { mkdirSync, openSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import * as rn from "./rednote.js";
 import { enqueue, listItems, type Args, type Tool } from "./queue.js";
 import { THEMES, renderCards } from "./cards.js";
-import { helpText } from "./help.js";
-import { budgetCheck, readLedger } from "./ledger.js";
+import { helpText, usage } from "./help.js";
+import { readLedger } from "./ledger.js";
 import { site } from "./session.js";
-import { DATA, LEDGER, QUEUE, URL_FILE, current, limitsOf, notify } from "./config.js";
+import { DATA, LEDGER, QUEUE, VERSION, current, limitsOf, notify, probeService, type Service } from "./config.js";
 
 const SERVICE = fileURLToPath(new URL("./service.js", import.meta.url));
-mkdirSync(QUEUE, { recursive: true });
+mkdirSync(QUEUE, { recursive: true, mode: 0o700 }); // owner-only: queue text, ledger, approval link
 
 const text = (data: unknown) => ({ content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
-
-type Service = { url: URL; token: string; dryRun: boolean };
-async function probe(): Promise<Service | null> {
-  try {
-    const url = new URL(readFileSync(URL_FILE, "utf8").trim());
-    const token = url.searchParams.get("t") ?? "";
-    const r = await fetch(new URL(`/health?t=${token}`, url), { signal: AbortSignal.timeout(2_000) });
-    return r.ok ? { url, token, dryRun: ((await r.json()) as { dryRun: boolean }).dryRun } : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Finds the running service, or starts it detached so it outlives this MCP session. */
 let starting: Promise<Service> | null = null;
 async function service(): Promise<Service> {
-  const up = await probe();
+  const up = await probeService();
   if (up) return up;
   starting ??= (async () => {
     const out = openSync(join(DATA, "service.log"), "a");
     spawn(process.execPath, [SERVICE], { detached: true, stdio: ["ignore", out, out], env: process.env }).unref();
     for (const end = Date.now() + 20_000; Date.now() < end; ) {
       await new Promise((r) => setTimeout(r, 500));
-      const s = await probe();
+      const s = await probeService();
       if (s) return s;
     }
-    throw new Error("Could not start the rednote-gate service. See data/service.log in the rednote-gate folder.");
+    throw new Error(`Could not start the rednote-gate service. See ${join(DATA, "service.log")}.`);
   })().finally(() => (starting = null));
   return starting;
 }
@@ -106,8 +94,7 @@ const post = {
   images: z.array(z.string()).min(1).max(9).describe("absolute paths to JPEG, PNG or WebP files, in posting order; the first is the cover"),
 };
 
-const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
-const server = new McpServer({ name: "rednote-gate", version });
+const server = new McpServer({ name: "rednote-gate", version: VERSION });
 
 server.registerTool("rednote_login_status", { description: "Check whether the saved RedNote session is logged in (main site and creator site). Read only." }, () => read("login_status"));
 server.registerTool(
@@ -168,7 +155,7 @@ server.registerTool(
 server.registerTool(
   "rednote_open_approval_page",
   { description: "Open the approval page in the user's browser so they can approve or reject queued writes. Returns no link." },
-  async () => text(openApproval(await service(), true) ? "Opened the approval page in the user's browser." : "Could not open it. The user can run `npm run approve` in the rednote-gate folder."),
+  async () => text(openApproval(await service(), true) ? "Opened the approval page in the user's browser." : "Could not open it. The user can run `rednote-gate approve` in a terminal (`npm run approve` in a clone)."),
 );
 server.registerTool(
   "rednote_make_cards",
@@ -190,13 +177,8 @@ server.registerTool(
   "rednote_help",
   { description: "What rednote-gate can do: every tool and workflow, the current mode, and what is left of today's budget. Never touches RedNote." },
   () => {
-    const entries = readLedger(LEDGER);
-    const live24 = entries.filter((e) => e.event === "attempt" && e.dryRun === false && Date.now() - Date.parse(e.at) < 24 * 3600_000);
-    const writesUsed = live24.filter((e) => e.tool !== "like_note").length;
     const s = current();
-    const slot = budgetCheck(entries, "create_post", new Date(), limitsOf(s));
-    const nextWrite = !slot.ok && Number.isFinite(slot.retryAt.getTime()) ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(slot.retryAt) : undefined;
-    return text(helpText({ version, site: site(), dryRun: s.dryRun, writesUsed, likesUsed: live24.length - writesUsed, limits: limitsOf(s), nextWrite }));
+    return text(helpText({ version: VERSION, site: site(), dryRun: s.dryRun, limits: limitsOf(s), ...usage(readLedger(LEDGER), limitsOf(s), new Date()) }));
   },
 );
 server.registerTool(

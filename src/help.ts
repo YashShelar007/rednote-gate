@@ -1,6 +1,6 @@
 // What rednote-gate can do, in one place, for the rednote_help tool and the help slash command.
 // help.test.ts keeps this list identical to what index.ts registers.
-import type { Limits } from "./ledger.js";
+import { budgetCheck, type Entry as LedgerEntry, type Limits } from "./ledger.js";
 
 type Entry = { name: string; what: string };
 export const CATALOGUE = {
@@ -41,17 +41,33 @@ export type HelpStatus = {
   nextWrite?: string; // when the next write slot opens, if the daily writes are used up
 };
 
-export function helpText(s: HelpStatus): string {
+/** Live writes and likes in the last 24 hours, and when the next write opens if none is left. */
+export function usage(entries: LedgerEntry[], limits: Limits, now: Date): Pick<HelpStatus, "writesUsed" | "likesUsed" | "nextWrite"> {
+  const live24 = entries.filter((e) => e.event === "attempt" && e.dryRun === false && now.getTime() - Date.parse(e.at) < 24 * 3600_000);
+  const writesUsed = live24.filter((e) => e.tool !== "like_note").length;
+  const slot = budgetCheck(entries, "create_post", now, limits);
+  const nextWrite = !slot.ok && Number.isFinite(slot.retryAt.getTime()) ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(slot.retryAt) : undefined;
+  return { writesUsed, likesUsed: live24.length - writesUsed, nextWrite };
+}
+
+/** Version, site, mode and today's budget: the top of rednote_help and `rednote-gate status`. */
+export function statusLines(s: HelpStatus): string[] {
   const likeCap = s.limits.likes ?? 10;
+  return [
+    `rednote-gate ${s.version} on ${s.site}. Mode: ${s.dryRun ? "DRY RUN (approved items fill the form but never publish)" : "LIVE (approved items are published)"}.`,
+    `Today: ${Math.max(0, s.limits.daily - s.writesUsed)} of ${s.limits.daily} writes left${s.nextWrite ? ` (next at ${s.nextWrite})` : ""}, ` +
+      `${Math.max(0, likeCap - s.likesUsed)} of ${likeCap} likes left, comments and replies at least ${s.limits.commentGapMin} minutes apart.`,
+  ];
+}
+
+export function helpText(s: HelpStatus): string {
   const list = (kind: string) =>
     CATALOGUE.tools
       .filter((t) => t.kind === kind)
       .map((t) => `- ${t.name}: ${t.what}`)
       .join("\n");
   return [
-    `rednote-gate ${s.version} on ${s.site}. Mode: ${s.dryRun ? "DRY RUN (approved items fill the form but never publish)" : "LIVE (approved items are published)"}.`,
-    `Today: ${Math.max(0, s.limits.daily - s.writesUsed)} of ${s.limits.daily} writes left${s.nextWrite ? ` (next at ${s.nextWrite})` : ""}, ` +
-      `${Math.max(0, likeCap - s.likesUsed)} of ${likeCap} likes left, comments and replies at least ${s.limits.commentGapMin} minutes apart.`,
+    ...statusLines(s),
     "",
     "Read, runs straight away:",
     list("read"),

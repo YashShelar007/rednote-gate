@@ -6,13 +6,26 @@ It is a local MCP server for Claude Code, Claude Desktop and Codex. Reads run di
 
 ## Quick start
 
+### Install from npm
+
+```bash
+npm install -g rednote-gate
+rednote-gate setup
+```
+
+That installs Chromium, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code. Your data and login live in `~/.rednote-gate`.
+
+### Or from a clone
+
 ```bash
 git clone https://github.com/YashShelar007/rednote-gate.git
 cd rednote-gate
 npm run setup
 ```
 
-That installs Chromium, builds, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code. Then, in Claude Code:
+Same steps, plus the build. A clone that already has a login in `.session/` keeps its data in the clone folder.
+
+Then, in Claude Code:
 
 | Slash command | What happens |
 | --- | --- |
@@ -23,7 +36,7 @@ That installs Chromium, builds, opens the QR login for your throwaway account, a
 | `/rednote-gate:review_queue` | Claude summarises what is waiting and what happened |
 | `/rednote-gate:help` | every tool and workflow, your mode, and what is left of today's budget |
 
-Or just ask in plain words ("post these two photos about my hike"). The first time you use a rednote tool, a small background service starts. It owns the browser, the approval page and the worker, and it keeps running after you close Claude Code, so the approval page always works and approved items always run. It closes the browser window after 5 idle minutes. Stop it with `npm run stop`. When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
+Or just ask in plain words ("post these two photos about my hike"). The first time you use a rednote tool, a small background service starts. It owns the browser, the approval page and the worker, and it keeps running after you close Claude Code, so the approval page always works and approved items always run. It closes the browser window after 5 idle minutes. Stop it with `rednote-gate stop` (`npm run stop` in a clone). When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
 
 Status: every flow was checked against the live site on 2026-10-06 on a rednote.com account, headed: four reads, and one real publish, draft, comment and reply, each approved by a human on the approval page. See [Last verified against the live site](#last-verified-against-the-live-site).
 
@@ -68,7 +81,7 @@ A short example:
 
 1. You ask Claude: "Post a note about my desk setup with /Users/me/pics/desk.jpg."
 2. Claude calls `rednote_create_post`. The server checks the image, copies it into the queue and hashes it. It returns a queue id such as `q_20261006T153012_ab12`. No browser opens. Nothing is posted.
-3. You run `npm run approve` and open the link it prints. The page shows the exact title, body and image. You click Approve.
+3. You run `rednote-gate approve` and open the link it prints. The page shows the exact title, body and image. You click Approve.
 4. The worker checks the queue every 10 seconds. It waits 30 seconds after your click, so you can still press Cancel, then picks up the item if the budget allows. It writes an `attempt` line to the ledger, then opens the creator page, uploads the image and types the text.
 5. In dry run mode (the default) it stops before the final click. The item becomes `dry_run`. In live mode (`RN_DRY_RUN=0`) it clicks publish. The item becomes `posted`.
 6. Claude can call `rednote_queue_status` to see the result. It never gets the approval link.
@@ -124,30 +137,46 @@ This project drives the RedNote website with a real browser and a real logged-in
 You need Node 20 or newer, a RedNote account made for this purpose, and the phone that account is logged in on.
 
 ```bash
-npm run setup
+npm install -g rednote-gate
+rednote-gate setup
 ```
 
-It runs these steps, which you can also run one by one:
+`rednote-gate setup` installs Chromium with the package's own Playwright, then runs these two steps, which you can also run one by one:
 
 ```bash
-npm install
-npx playwright install chromium
-npm run build
-npm run login
-npm run connect
+rednote-gate login
+rednote-gate connect
 ```
 
-`npm run connect` adds rednote-gate to Claude Code for all your projects (`claude mcp add --scope user`). For Claude Desktop or Codex, see below.
+From a clone, `npm run setup` does the same after `npm install` and `npm run build`. In a clone, `npm run login`, `connect`, `live`, `dry`, `stop` and `approve` run the same commands.
 
-It starts in dry run: approved items fill in the form but never publish. When a dry run looks right, switch modes with one command, then open a new Claude Code session:
+`rednote-gate connect` adds rednote-gate to Claude Code for all your projects (`claude mcp add --scope user`). It also prints the config for Claude Desktop and Codex. See below.
+
+It starts in dry run: approved items fill in the form but never publish. When a dry run looks right, switch modes with one command:
 
 ```bash
-npm run live
+rednote-gate live
 ```
 
-`npm run dry` switches back. Approvals given in one mode never run in the other.
+It says what live means and asks you to confirm. `rednote-gate live --yes` skips the question. The mode is saved to `settings.json`, the same file the dashboard's Settings page writes, and the service restarts on the next tool call. `rednote-gate dry` switches back. Approvals given in one mode never run in the other.
 
-`npm run login` opens a visible browser at xiaohongshu.com. Overseas accounts get sent to rednote.com: the login follows, reloads on rednote.com and asks you to scan the new QR code. It records which site your account uses in `.session/site`. Scan the QR code with the throwaway account's phone. If the page shows you logged in but the terminal does not move on, press Enter there. It then visits creator.xiaohongshu.com to pick up the creator session; scan again if that site asks. It saves the session to `.session/state.json` with owner-only permissions (0600).
+More commands:
+
+| Command | Does |
+| --- | --- |
+| `rednote-gate status` | version, site, mode, what is left of today's budget, whether the service runs |
+| `rednote-gate doctor` | offline checks, one pass or fail line each: Node, Chromium, login, settings, ledger, service. Never contacts RedNote. |
+| `rednote-gate approve` | prints the approval page link |
+| `rednote-gate stop` | stops the background service |
+| `rednote-gate help` | all commands |
+
+With no command, `rednote-gate` runs the MCP server. That is what MCP clients start.
+
+### Where your data lives
+
+Data and login live in `~/.rednote-gate`: `data/` for the queue, ledger and settings, and `.session/` for the login. `RN_HOME` moves both. A clone that already has `.session/` from an older version keeps using its own folder.
+
+`rednote-gate login` opens a visible browser at xiaohongshu.com. Overseas accounts get sent to rednote.com: the login follows, reloads on rednote.com and asks you to scan the new QR code. It records which site your account uses in `.session/site`. Scan the QR code with the throwaway account's phone. If the page shows you logged in but the terminal does not move on, press Enter there. It then visits creator.xiaohongshu.com to pick up the creator session; scan again if that site asks. It saves the session to `.session/state.json` with owner-only permissions (0600).
 
 Quit your MCP client before running it: only one process may drive the browser.
 
@@ -157,12 +186,12 @@ Then add the server to your MCP client.
 
 ## Wiring into Claude Code, Claude Desktop and Codex
 
-Use the absolute path to `dist/index.js` in your clone.
+`rednote-gate connect` prints all three for your install. With a global npm install the command is `rednote-gate`. From a clone, use `node` with the absolute path to `dist/cli.js`.
 
 **Claude Code:**
 
 ```bash
-claude mcp add rednote-gate -- node /ABSOLUTE/PATH/rednote-gate/dist/index.js
+claude mcp add rednote-gate --scope user -- rednote-gate
 ```
 
 **Claude Desktop** (in `claude_desktop_config.json`):
@@ -171,17 +200,24 @@ claude mcp add rednote-gate -- node /ABSOLUTE/PATH/rednote-gate/dist/index.js
 {
   "mcpServers": {
     "rednote-gate": {
-      "command": "node",
-      "args": ["/ABSOLUTE/PATH/rednote-gate/dist/index.js"],
-      "env": { "RN_DRY_RUN": "1" }
+      "command": "rednote-gate",
+      "args": []
     }
   }
 }
 ```
 
-**Codex:** add a server entry to Codex's MCP config with command `node`, args `["/ABSOLUTE/PATH/rednote-gate/dist/index.js"]`, and any env you need. See Codex's own docs for where that config lives.
+Claude Desktop may not see your shell's PATH. If it cannot start the server, use absolute paths: `command` is the output of `which node`, and `args` is `["<npm root -g>/rednote-gate/dist/cli.js"]`.
 
-The `env` block is optional. See [Environment variables](#environment-variables).
+**Codex** (in `~/.codex/config.toml`):
+
+```toml
+[mcp_servers.rednote-gate]
+command = "rednote-gate"
+args = []
+```
+
+An `env` block is optional. See [Environment variables](#environment-variables).
 
 Never load a browser MCP, such as `@playwright/mcp`, in the same client session as rednote-gate. An agent with a browser could open the approval page and click Approve.
 
@@ -189,10 +225,10 @@ Never load a browser MCP, such as `@playwright/mcp`, in the same client session 
 
 The page runs at `http://127.0.0.1:7317` while the MCP server runs. Change the port with `RN_APPROVAL_PORT`.
 
-Get the link from the repo root:
+Get the link:
 
 ```bash
-npm run approve
+rednote-gate approve
 ```
 
 It prints the URL with a secret token. The server makes a new token each time it starts, so get a fresh link after a restart. The link is also stored in `data/approval-url` with owner-only permissions.
@@ -231,7 +267,7 @@ How the page is protected:
 
 ## Queue file format
 
-All data lives in `data/` at the repo root. `RN_DATA_DIR` moves it. Everything in it is git-ignored.
+All data lives in `~/.rednote-gate/data/`, or in `data/` in a clone that already had a login. `RN_HOME` or `RN_DATA_DIR` moves it. The folder is owner-only. In a clone it is git-ignored.
 
 | Path | What |
 | --- | --- |
@@ -285,15 +321,16 @@ If a line is not valid JSON, writes stop until you fix or remove that line. A bu
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `RN_SITE` | from `npm run login` | `xiaohongshu.com` (mainland accounts) or `rednote.com` (overseas accounts) |
+| `RN_HOME` | `~/.rednote-gate` | folder for `data/` and `.session/`. A clone that already has `.session/` uses the clone folder instead. |
+| `RN_SITE` | from `rednote-gate login` | `xiaohongshu.com` (mainland accounts) or `rednote.com` (overseas accounts) |
 | `RN_HEADLESS` | headed | `1` runs Chromium headless |
 | `RN_DRY_RUN` | `1` | `0` lets the worker click the final button on approved items |
 | `RN_DAILY_WRITES` | `5` | live attempts allowed in any rolling 24 hours |
 | `RN_COMMENT_GAP_MIN` | `10` | minutes between live comment or reply attempts |
 | `RN_DAILY_LIKES` | `10` | live likes allowed in any rolling 24 hours, separate from `RN_DAILY_WRITES` |
 | `RN_APPROVAL_PORT` | `7317` | approval page port |
-| `RN_DATA_DIR` | `<repo>/data` | queue, ledger, screenshots, lock |
-| `RN_SESSION_PATH` | `<repo>/.session/state.json` | saved login session |
+| `RN_DATA_DIR` | `<RN_HOME>/data` | queue, ledger, settings, screenshots, lock |
+| `RN_SESSION_PATH` | `<RN_HOME>/.session/state.json` | saved login session |
 | `RN_OPEN_APPROVAL` | on | `0` stops the approval page opening by itself |
 | `RN_NOTIFY` | on | `0` turns off Mac notifications |
 | `RN_TYPE_MIN_MS` | `40` | shortest delay per typed character |
@@ -303,7 +340,7 @@ Limits and the port must be whole numbers. A typo stops the server with an error
 
 The dashboard's Settings page writes `data/settings.json`, which wins over these variables for limits, mode and notifications.
 
-Set these in your MCP client's env block. `npm run login` and `npm run approve` read them from your shell. If you change `RN_DATA_DIR` or `RN_SESSION_PATH` in the client, export the same values before running those commands.
+Set these in your MCP client's env block. The `rednote-gate` commands read them from your shell. If you set `RN_HOME`, `RN_DATA_DIR` or `RN_SESSION_PATH`, export the same values in your shell. `rednote-gate connect` copies those three into the Claude Code entry.
 
 Dry run is not free of side effects. It opens the page, uploads images to RedNote's creator page and types the text. It only skips the final publish, save or send click.
 
@@ -320,7 +357,7 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 ## Known limits
 
 - **A browser agent could approve.** An agent with its own browser tool on the same machine could open the approval page and click Approve. Never load a browser MCP in the same client session. The same goes for any process running as your user: it can read `data/approval-url`. The gate stops the model acting through rednote-gate's tools. It cannot stop other software you run.
-- **The service keeps running.** It starts on first use and stays up until `npm run stop` or a reboot. After changing settings or updating the code, run `npm run stop`; the next tool call starts it fresh. Its log is `data/service.log`.
+- **The service keeps running.** It starts on first use and stays up until `rednote-gate stop` or a reboot. After updating, run `rednote-gate stop`; the next tool call starts it fresh. Settings apply without a restart. Its log is `data/service.log`.
 - **Selectors drift.** RedNote changes its pages. The selectors live in the `SEL` object in `src/rednote.ts`. Fix them there. Record the evidence in the capture block in [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md) and in [docs/friction.md](docs/friction.md).
 - **Unknown blocks a re-queue.** An `unknown` item blocks an identical write. If you check by hand and it did not post, change the text before queuing it again.
 - **Drafts stay in rednote-gate's browser.** RedNote's web creator site keeps drafts in the browser, not in your account (its own notice says so). A draft saved by rednote-gate does not appear in your phone app. rednote-gate keeps it across restarts by saving the browser's IndexedDB with the session; to finish it, open the creator site's 草稿箱 in rednote-gate's browser.
