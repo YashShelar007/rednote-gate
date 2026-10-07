@@ -23,6 +23,17 @@ const transport = new StdioClientTransport({
   env: { RN_DATA_DIR: DATA, RN_SESSION_PATH: join(ROOT, "session", "state.json"), RN_APPROVAL_PORT: "0", RN_OPEN_APPROVAL: "0", RN_NOTIFY: "0", RN_DRY_RUN: "1" },
 });
 
+const NOTE = "https://www.xiaohongshu.com/explore/6a1111111111111111111111?xsec_token=x";
+const COMMENT = `Great tips <script>alert("x")</script> & thanks`;
+
+async function call(name: string, args: Record<string, unknown> = {}) {
+  const r = await client.callTool({ name, arguments: args }, undefined, CALL);
+  return { text: (r.content as Array<{ text: string }>)[0].text, isError: r.isError === true };
+}
+/** The approval link the service wrote. Only this test's temp copy, never the owner's. */
+const approvalUrl = () => new URL(readFileSync(join(DATA, "approval-url"), "utf8").trim());
+const get = (path: string) => fetch(new URL(path, approvalUrl()), { signal: AbortSignal.timeout(5_000) });
+
 const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
@@ -66,5 +77,41 @@ describe("rednote-gate over MCP, with the real background service", { timeout: 1
   test("lists exactly the workflows in the help catalogue as prompts", async () => {
     const { prompts } = await client.listPrompts(undefined, CALL);
     assert.deepEqual(prompts.map((p) => p.name).sort(), CATALOGUE.workflows.map((w) => w.name).sort());
+  });
+
+  test("rednote_help names the mode and every tool", async () => {
+    const { text, isError } = await call("rednote_help");
+    assert.equal(isError, false);
+    assert.match(text, /Mode: DRY RUN/);
+    for (const t of CATALOGUE.tools) assert.ok(text.includes(t.name), `help is missing ${t.name}`);
+  });
+
+  let queuedId = "";
+  test("a comment is queued once, and queuing starts the background service", async () => {
+    const first = await call("rednote_post_comment", { url: NOTE, text: COMMENT });
+    assert.equal(first.isError, false, first.text);
+    queuedId = first.text.match(/^Queued as (q_\d{8}T\d{6}_[0-9a-f]{4})\./)?.[1] ?? "";
+    assert.ok(queuedId, first.text);
+    assert.match(first.text, /Mode: dry run/);
+
+    const again = await call("rednote_post_comment", { url: NOTE, text: COMMENT });
+    assert.match(again.text, new RegExp(`^Already queued as ${queuedId} \\(status: pending\\)\\. Not queued again\\.`));
+
+    const pid = Number(readFileSync(join(DATA, "lock"), "utf8"));
+    assert.ok(alive(pid), "the service in the lock file is running");
+    assert.notEqual(pid, transport.pid, "the service is its own process, not the MCP server");
+    assert.equal((await get("/health")).status, 403, "health needs the token");
+    const health = await get(`/health?t=${approvalUrl().searchParams.get("t")}`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { ok: true, dryRun: true });
+  });
+
+  test("the service's approval page shows the queued comment, escaped", async () => {
+    const res = await get(approvalUrl().pathname + approvalUrl().search);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.ok(html.includes(queuedId), "the page lists the queued item");
+    assert.ok(html.includes("Great tips &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; thanks"), "the exact text, escaped");
+    assert.doesNotMatch(html, /<script>alert/);
   });
 });
