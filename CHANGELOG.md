@@ -5,6 +5,21 @@
 ### Added
 - Dashboard: today's usage as meters on the approval page, and a Settings page for mode, daily limits, comment gap and notifications. Changes apply live, without a restart.
 - `data/settings.json`, checked against hard maximums (20 writes, 50 likes, comments at least 2 minutes apart). Switching to live needs a confirmation tick.
+- Install from npm: `npm install -g rednote-gate`, then `rednote-gate setup`.
+- `rednote-gate` command. With no arguments it runs the MCP server. Subcommands: `setup`, `login`, `connect`, `live`, `dry`, `stop`, `approve`, `status`, `doctor`, `help`.
+- `rednote-gate doctor`: offline checks for Node, Chromium, login, settings, ledger and the service. It never contacts RedNote.
+- `rednote-gate connect` also prints the config for Claude Desktop and Codex.
+- `RN_HOME` sets where data and the login live.
+
+### Changed
+- Data and login now live in `~/.rednote-gate` by default. A clone that already has `.session/` keeps using its own folder, so existing installs keep working. `RN_DATA_DIR` and `RN_SESSION_PATH` still override.
+- `rednote-gate live` and `dry` (and `npm run live|dry`) write the mode into `settings.json` instead of re-registering the server with Claude Code. `live` asks for confirmation, or takes `--yes`.
+- `npm run setup|login|connect|live|dry|stop|approve` now run the `rednote-gate` command.
+- The package bin is `dist/cli.js`. The npm package ships compiled code, README, LICENSE and CHANGELOG only.
+
+### Security and safety
+- New data folders are created owner-only (0700).
+- `rednote-gate stop` only signals the pid in the lock file after checking it is the rednote-gate service, so a stale lock never stops another program.
 
 ## [1.0.0] - 2026-10-06
 
