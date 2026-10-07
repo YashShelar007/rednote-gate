@@ -14,7 +14,7 @@ import { THEMES, renderCards } from "./cards.js";
 import { helpText } from "./help.js";
 import { budgetCheck, readLedger } from "./ledger.js";
 import { site } from "./session.js";
-import { DATA, DRY_RUN, LEDGER, LIMITS, QUEUE, URL_FILE, notify } from "./config.js";
+import { DATA, LEDGER, QUEUE, URL_FILE, current, limitsOf, notify } from "./config.js";
 
 const SERVICE = fileURLToPath(new URL("./service.js", import.meta.url));
 mkdirSync(QUEUE, { recursive: true });
@@ -67,7 +67,7 @@ async function read(tool: string, args: object = {}) {
  *  token, so it goes to the OS opener, never into a tool result. RN_OPEN_APPROVAL=0 turns it off. */
 let lastOpened = 0;
 function openApproval(s: Service, force = false): boolean {
-  if (process.env.RN_OPEN_APPROVAL === "0" || (!force && Date.now() - lastOpened < 60_000)) return false;
+  if (!current().openApproval || (!force && Date.now() - lastOpened < 60_000)) return false;
   lastOpened = Date.now();
   const url = s.url.toString();
   const [cmd, args] = process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
@@ -193,9 +193,10 @@ server.registerTool(
     const entries = readLedger(LEDGER);
     const live24 = entries.filter((e) => e.event === "attempt" && e.dryRun === false && Date.now() - Date.parse(e.at) < 24 * 3600_000);
     const writesUsed = live24.filter((e) => e.tool !== "like_note").length;
-    const slot = budgetCheck(entries, "create_post", new Date(), LIMITS);
+    const s = current();
+    const slot = budgetCheck(entries, "create_post", new Date(), limitsOf(s));
     const nextWrite = !slot.ok && Number.isFinite(slot.retryAt.getTime()) ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(slot.retryAt) : undefined;
-    return text(helpText({ version, site: site(), dryRun: DRY_RUN, writesUsed, likesUsed: live24.length - writesUsed, limits: LIMITS, nextWrite }));
+    return text(helpText({ version, site: site(), dryRun: s.dryRun, writesUsed, likesUsed: live24.length - writesUsed, limits: limitsOf(s), nextWrite }));
   },
 );
 server.registerTool(

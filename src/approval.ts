@@ -8,6 +8,7 @@ import { extname, join } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { listItems, readItem, transition, type Item, type PostArgs, type CommentArgs, type LikeArgs, type ReplyArgs, type Status, type VideoArgs } from "./queue.js";
 import { appendLedger, budgetCheck, haltReason, readLedger, type Limits } from "./ledger.js";
+import { MAX, loadSettings, saveSettings } from "./settings.js";
 
 export interface ApprovalOptions {
   dir: string;
@@ -17,6 +18,8 @@ export interface ApprovalOptions {
   port: number; // 0 picks a free port (tests)
   limits: Limits;
   dryRun: boolean;
+  /** When set, the dashboard shows a settings form that writes this file. */
+  settingsFile?: string;
   /** Read tools the MCP server calls over 127.0.0.1 with the token in a header. */
   reads?: Record<string, (args: never) => Promise<unknown>>;
 }
@@ -128,7 +131,54 @@ dl{margin:.5rem 0 0}dt{color:var(--muted);font-size:.8125rem;margin-top:.5rem}dd
 .row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}button{font:inherit;font-weight:600;min-height:2.75rem;padding:0 1rem;border-radius:4px;border:1px solid var(--muted);background:var(--surface);color:var(--ink);cursor:pointer;touch-action:manipulation}
 button:hover{background:var(--page)}.approve{background:var(--go);border-color:var(--go);color:var(--on-go)}.approve:hover{filter:brightness(1.1);background:var(--go)}.reject,.cancel{color:var(--stop);border-color:var(--stop)}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}.s{font-size:.8125rem;white-space:nowrap}.s.posted,.s.dry_run{color:var(--go)}.s.unknown,.s.failed{color:var(--stop)}.s.pending,.s.approved{color:var(--wait)}
-details summary{cursor:pointer;font-weight:600;margin-top:2rem}.shot{width:100%;height:auto;margin-top:.25rem;border:1px solid var(--line);border-radius:4px}`;
+details summary{cursor:pointer;font-weight:600;margin-top:2rem}
+nav{display:flex;gap:1rem;margin:.25rem 0 1rem}nav a{font-weight:600}nav a[aria-current=page]{color:var(--ink);text-decoration:none}
+.meters{display:grid;grid-template-columns:auto 1fr auto;gap:.25rem .75rem;align-items:center;margin:.5rem 0 0;font-variant-numeric:tabular-nums}meter{width:100%;height:.75rem}
+fieldset{border:1px solid var(--line);border-radius:6px;background:var(--surface);margin:0 0 1rem;padding:.75rem 1rem}legend{font-weight:600;padding:0 .25rem}
+.field{display:grid;gap:.25rem;margin:.5rem 0}.choice{display:flex;gap:.5rem;align-items:flex-start;margin:.4rem 0}.choice input{margin-top:.3rem}
+input[type=number]{font:inherit;width:7rem;min-height:2.75rem;padding:0 .5rem;border:1px solid var(--muted);border-radius:4px;background:var(--surface);color:var(--ink)}
+.msg{padding:.6rem 1rem;border-radius:6px;border:1px solid var(--line);background:var(--surface);margin:0 0 1rem}.msg.err{border-color:var(--stop);color:var(--stop)}.msg.ok{border-color:var(--go)}.shot{width:100%;height:auto;margin-top:.25rem;border:1px solid var(--line);border-radius:4px}`;
+
+const HEAD = (title: string, refresh: boolean) =>
+  `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=color-scheme content="light dark"><meta name=theme-color content="#eef1f4" media="(prefers-color-scheme: light)"><meta name=theme-color content="#15181c" media="(prefers-color-scheme: dark)">${refresh ? "<meta http-equiv=refresh content=5>" : ""}<title>${title}, rednote-gate</title><style>${CSS}</style></head>`;
+
+function nav(o: ApprovalOptions, here: "queue" | "settings"): string {
+  if (!o.settingsFile) return "";
+  const link = (href: string, label: string, id: string) => `<a href="${href}?t=${o.token}"${here === id ? " aria-current=page" : ""}>${label}</a>`;
+  return `<nav aria-label="Pages">${link("/", "Queue and activity", "queue")}${link("/settings", "Settings", "settings")}</nav>`;
+}
+
+function settingsPage(o: ApprovalOptions, q: URLSearchParams): string {
+  const t = o.token;
+  const s = loadSettings(o.settingsFile!);
+  const msg = q.get("error") ? `<p class="msg err" role=alert>${esc(q.get("error"))}</p>` : q.get("saved") ? `<p class="msg ok" role=status>Saved. It applies to the next item that runs.</p>` : "";
+  const on = (b: boolean) => (b ? " checked" : "");
+  const num = (name: string, label: string, value: number, min: number, max: number, hint: string) =>
+    `<label class=field><span>${label}</span><input type=number name="${name}" min="${min}" max="${max}" value="${value}" required inputmode=numeric><span class=note>${hint}</span></label>`;
+  return `${HEAD("Settings", false)}
+<body><main>
+<h1>rednote-gate</h1>${nav(o, "settings")}
+${msg}<form method=post action="/settings"><input type=hidden name=t value="${t}">
+<fieldset><legend>Mode</legend>
+<label class=choice><input type=radio name=mode value=dry${on(s.dryRun)}><span><b>Dry run.</b> Approved items fill in the form on RedNote but are never published or sent.</span></label>
+<label class=choice><input type=radio name=mode value=live${on(!s.dryRun)}><span><b>Live.</b> Approved items are published or sent from the account.</span></label>
+${s.dryRun ? `<label class=choice><input type=checkbox name=confirmLive><span>I understand that switching to live publishes approved items from my account.</span></label>` : ""}
+<p class=note>Approvals only run in the mode they were given in, so switching never sends anything you approved for a dry run.</p>
+</fieldset>
+<fieldset><legend>Daily limits</legend>
+${num("daily", "Writes per day", s.daily, 0, MAX.daily, `Posts, drafts, videos, comments and replies. Up to ${MAX.daily}.`)}
+${num("likes", "Likes per day", s.likes, 0, MAX.likes, `Up to ${MAX.likes}.`)}
+${num("commentGapMin", "Minutes between comments and replies", s.commentGapMin, MAX.minCommentGapMin, MAX.maxCommentGapMin, `At least ${MAX.minCommentGapMin}.`)}
+<p class=note>A new account is safest with the defaults: 5 writes, 10 likes, 10 minutes. The maximums cannot be raised.</p>
+</fieldset>
+<fieldset><legend>Notifications</legend>
+<label class=choice><input type=checkbox name=notify${on(s.notify)}><span>Mac notifications when something is queued, done or stopped</span></label>
+<label class=choice><input type=checkbox name=openApproval${on(s.openApproval)}><span>Open this page when something is queued</span></label>
+</fieldset>
+<div class=row><button class=approve>Save settings</button></div>
+</form>
+</main></body></html>`;
+}
 
 function page(o: ApprovalOptions): string {
   const t = o.token;
@@ -158,15 +208,19 @@ function page(o: ApprovalOptions): string {
   const hasShot = (i: Item) => !!o.shots && existsSync(join(o.shots, `${i.id}.png`));
   const history = items.filter((i) => !["pending", "approved"].includes(i.status)).reverse().slice(0, 20).map((i) => card(i, t, [], "", hasShot(i)));
   const busy = items.some((i) => i.status === "approved" || i.status === "posting");
-  return `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=color-scheme content="light dark"><meta name=theme-color content="#eef1f4" media="(prefers-color-scheme: light)"><meta name=theme-color content="#15181c" media="(prefers-color-scheme: dark)">${busy ? "<meta http-equiv=refresh content=5>" : ""}<title>Approvals, rednote-gate</title><style>${CSS}</style></head>
+  const likeCap = o.limits.likes ?? 10;
+  const slot = budgetCheck(entries, "create_post", now, o.limits);
+  const next = !slot.ok && Number.isFinite(slot.retryAt.getTime()) ? ` Next write slot ${new Intl.DateTimeFormat(undefined, { timeStyle: "short", dateStyle: "medium" }).format(slot.retryAt)}.` : "";
+  return `${HEAD("Approvals", busy)}
 <body><a class=skip href="#queue">Skip to the queue</a><main>
-<h1>Approve writes to RedNote</h1>
+<h1>Approve writes to RedNote</h1>${nav(o, "queue")}
 <div class="mode ${o.dryRun ? "dry" : "live"}">${o.dryRun ? "<b>Dry run.</b> Approved items fill in the form on RedNote but are never published or sent." : "<b>Live.</b> Approved items are published or sent from the account about 30 seconds after you approve."}
-<p class=budget>Live in the last 24 hours: ${used} of ${o.limits.daily} writes, ${likesUsed} of ${o.limits.likes ?? 10} likes. <a href="/?t=${t}">Refresh</a></p></div>
+<div class=meters><span>Writes</span><meter min=0 max="${o.limits.daily}" value="${used}" aria-label="Writes used in the last 24 hours"></meter><span>${used} of ${o.limits.daily}</span><span>Likes</span><meter min=0 max="${likeCap}" value="${likesUsed}" aria-label="Likes used in the last 24 hours"></meter><span>${likesUsed} of ${likeCap}</span></div>
+<p class=budget>Live writes and likes in the last 24 hours.${next} <a href="/?t=${t}">Refresh</a></p></div>
 ${halt ? `<div class=halt role=alert><b>Stopped.</b> RedNote showed: ${esc(halt)}. Nothing runs until you resume. Open the RedNote app and check the account first.<form method=post action="/resume"><input type=hidden name=t value="${t}"><div class=row><button class=approve>Resume</button></div></form></div>` : ""}
 <section id=queue aria-labelledby=h-pending><h2 id=h-pending>Needs your decision (${pending.length})</h2>${pending.join("") || "<p class=note>Nothing waiting. When Claude queues a post, comment or reply, it shows up here.</p>"}</section>
 <section aria-labelledby=h-approved><h2 id=h-approved>Approved, not run yet (${approved.length})</h2>${approved.join("") || "<p class=note>None.</p>"}</section>
-<details${busy || history.length ? " open" : ""}><summary>History (${history.length})</summary>${history.join("") || "<p class=note>Nothing has run yet.</p>"}</details>
+<details${busy || history.length ? " open" : ""}><summary>Recent activity (${history.length})</summary>${history.join("") || "<p class=note>Nothing has run yet.</p>"}</details>
 </main></body></html>`;
 }
 
@@ -182,6 +236,7 @@ async function handle(o: ApprovalOptions, port: number, req: IncomingMessage, re
   if (req.method === "GET") {
     if (!sameToken(url.searchParams.get("t"), o.token)) return send(403, "Missing or wrong token. Run `npm run approve` for the link.");
     if (url.pathname === "/") return send(200, page(o), "text/html; charset=utf-8");
+    if (url.pathname === "/settings" && o.settingsFile) return send(200, settingsPage(o, url.searchParams), "text/html; charset=utf-8");
     if (url.pathname === "/health") return send(200, JSON.stringify({ ok: true, dryRun: o.dryRun }), "application/json");
     const shot = url.pathname.match(/^\/shot\/([^/]+)$/);
     if (shot && o.shots) {
@@ -237,6 +292,18 @@ async function handle(o: ApprovalOptions, port: number, req: IncomingMessage, re
   const form = new URLSearchParams(await readBody(req));
   if (!sameToken(form.get("t"), o.token)) return send(403, "Missing or wrong token.");
   const back = { Location: `/?t=${o.token}` };
+  if (url.pathname === "/settings" && o.settingsFile) {
+    const go = (q: string) => send(303, "", undefined, { Location: `/settings?t=${o.token}&${q}` });
+    const num = (k: string) => (form.get(k) ? Number(form.get(k)) : undefined);
+    const patch = { daily: num("daily"), likes: num("likes"), commentGapMin: num("commentGapMin"), dryRun: form.get("mode") !== "live", notify: form.has("notify"), openApproval: form.has("openApproval") };
+    if (loadSettings(o.settingsFile).dryRun && !patch.dryRun && !form.has("confirmLive")) return go(`error=${encodeURIComponent("Tick the box to confirm switching to live.")}`);
+    try {
+      saveSettings(o.settingsFile, patch);
+    } catch (e) {
+      return go(`error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`);
+    }
+    return go("saved=1");
+  }
   if (url.pathname === "/resume") {
     appendLedger(o.ledger, { at: new Date().toISOString(), event: "resumed", detail: "resumed from the approval page" });
     return send(303, "", undefined, back);

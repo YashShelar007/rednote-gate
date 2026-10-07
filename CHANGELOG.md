@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Dashboard: today's usage as meters on the approval page, and a Settings page for mode, daily limits, comment gap and notifications. Changes apply live, without a restart.
+- `data/settings.json`, checked against hard maximums (20 writes, 50 likes, comments at least 2 minutes apart). Switching to live needs a confirmation tick.
+
 ## [1.0.0] - 2026-10-06
 
 First public release. Every flow below was checked against the live site on 2026-10-06 with a rednote.com account; see the "Last verified" table in the README.

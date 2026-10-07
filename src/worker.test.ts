@@ -128,6 +128,16 @@ test("no write starts while a read holds the browser", async () => {
   assert.equal(await tick({ ...o, run, dryRun: false, idle: () => true }), "posted");
 });
 
+test("a settings change applies on the next tick, without a restart", async () => {
+  const o = setup();
+  approved(o.dir, "hello", "post_comment", "live");
+  let dry = true;
+  const live = { ...o, run: counting(), get dryRun() { return dry; } };
+  assert.equal(await tick({ ...live }), null, "dry mode: a live approval waits");
+  dry = false; // what the dashboard does when you switch to live
+  assert.equal(await tick({ ...live }), "posted");
+});
+
 test("a captcha halts the worker until a human resumes", async () => {
   const o = setup();
   approved(o.dir, "one");
