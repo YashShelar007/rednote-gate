@@ -160,11 +160,11 @@ footer p{max-width:44rem}
 
 <section id="demo" class="wrap demo" aria-labelledby="h-demo">
   <h2 id="h-demo">See it in 24 seconds</h2>
-  <p class="intro">Claude queues a photo note. The approval page shows it next to a waiting like and comment, and nothing runs until the Approve click. Then come the settings and the install command. The data is made up. The video has music and no speech.</p>
+  <p class="intro" id="demo-desc">Claude queues a photo note. The approval page shows it next to a waiting like and comment, and nothing runs until the Approve click. Then come the settings and the install command. The data is made up. The video has music and no speech.</p>
   <figure>
-    <video class="shot" controls muted playsinline preload="none" poster="assets/demo-poster.jpg" width="1920" height="1080">
+    <video class="shot" controls muted playsinline preload="none" poster="assets/demo-poster.jpg" width="1920" height="1080" aria-describedby="demo-desc">
       <source src="assets/demo.mp4" type="video/mp4">
-      <a href="assets/demo.mp4">Download the demo video (MP4, 4.1 MB)</a>
+      <a href="assets/demo.mp4">Download the demo video (MP4, 4.1&nbsp;MB)</a>
     </video>
     <figcaption><a href="https://ende.app/en/standard-license">Music by Sascha Ende (ende.app), CC BY 4.0</a></figcaption>
   </figure>
@@ -271,11 +271,11 @@ footer p{max-width:44rem}
   <h2 id="h-install">Install</h2>
   <p class="intro">You need Node 20 or newer, a RedNote account made for this, and the phone that account is logged in on.</p>
   <ol>
-    <li>Install from npm and run setup. It installs Chromium, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code. Your data and login live in <code>~/.rednote-gate</code>.
+    <li>Install from npm and run setup. It installs Chromium, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code. Your data and login live in <code translate="no">~/.rednote-gate</code>.
 <pre role="region" tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>npm install -g rednote-gate
 <span class="p">$ </span>rednote-gate setup</code></pre></li>
     <li>Ask Claude for something, such as &ldquo;post these two photos about my hike&rdquo;. Approve it on the page that opens. It runs as a dry run.</li>
-    <li>When a dry run looks right, switch to live. It asks you to confirm. <code>rednote-gate dry</code> switches back.
+    <li>When a dry run looks right, switch to live. It asks you to confirm. <code translate="no">rednote-gate dry</code> switches back.
 <pre role="region" tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>rednote-gate live</code></pre></li>
   </ol>
   <p>For Claude Desktop or Codex, see <a href="https://github.com/YashShelar007/rednote-gate#wiring-into-claude-code-claude-desktop-and-codex">the README</a>. It also covers installing from a clone.</p>
