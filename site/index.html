@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15181c" media="(prefers-color-scheme: dark)">
+<title>rednote-gate: AI help for RedNote, with a human Approve click</title>
+<meta name="description" content="An open-source MCP server for Claude Code, Claude Desktop and Codex. It helps run one throwaway RedNote account, and nothing is posted, sent or liked until you click Approve on a page on your own computer.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2317703a'/%3E%3Cpath d='M8 7v18M24 7v18M8 12h16M8 20h16' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  color-scheme:light dark;
+  --page:#eef1f4;--surface:#fff;--ink:#1c2024;--muted:#4f5762;--line:#d3d8de;
+  --go:#17703a;--on-go:#fff;--wait:#8a5a00;--stop:#a61b1b;--link:#1f5fbf;--focus:#1f5fbf;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --page:#15181c;--surface:#1e2227;--ink:#e6e9ed;--muted:#a3acb7;--line:#353b43;
+  --go:#3fb76a;--on-go:#0b1f12;--wait:#e0a43a;--stop:#f06a6a;--link:#8bb8ff;--focus:#8bb8ff;
+}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);font:1.0625rem/1.6 var(--sans);-webkit-tap-highlight-color:transparent}
+a{color:var(--link);text-underline-offset:.15em}
+a:hover{text-decoration-thickness:2px}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:2px}
+img{max-width:100%;height:auto;display:block}
+code,pre{font-family:var(--mono);font-size:.875em}
+.wrap{max-width:70rem;margin:0 auto;padding:0 max(1rem,env(safe-area-inset-left)) 0 max(1rem,env(safe-area-inset-right))}
+.skip{position:absolute;left:-999px;top:.5rem;background:var(--surface);padding:.5rem 1rem}
+.skip:focus{left:1rem}
+
+/* header */
+.top{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-block:1rem}
+.brand{font-weight:700;color:var(--ink);text-decoration:none;display:flex;align-items:center;gap:.5rem}
+.brand svg{flex:none}
+.top nav{display:flex;gap:1.25rem;flex-wrap:wrap}
+
+/* hero */
+.hero{display:grid;gap:2.5rem;padding-block:2.5rem 4rem;align-items:start}
+h1{font-size:clamp(2.25rem,7vw,4.25rem);line-height:1.04;letter-spacing:-.025em;font-weight:800;margin:0 0 1.25rem;text-wrap:balance;max-width:14ch}
+.lede{font-size:1.1875rem;max-width:36rem;margin:0 0 1.5rem;text-wrap:pretty}
+.warn{color:var(--muted);max-width:36rem;margin:0 0 1.75rem;padding-left:.875rem;border-left:3px solid var(--wait)}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:1rem 1.125rem;margin:0;overflow-x:auto;line-height:1.7}
+pre .p{color:var(--muted);user-select:none}
+.cta{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;align-items:center;margin-top:1.5rem}
+.button{display:inline-flex;align-items:center;min-height:2.75rem;padding:0 1.25rem;border-radius:4px;background:var(--go);color:var(--on-go);font-weight:650;text-decoration:none;touch-action:manipulation}
+.button:hover{filter:brightness(1.1)}
+figure{margin:0}
+.shot{border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+figcaption{color:var(--muted);font-size:.875rem;margin-top:.625rem;max-width:36rem}
+
+/* sections */
+section{padding-block:3.5rem;border-top:1px solid var(--line)}
+section[id]{scroll-margin-top:1rem}
+h2{font-size:clamp(1.625rem,3.5vw,2.125rem);line-height:1.15;letter-spacing:-.015em;margin:0 0 .75rem;text-wrap:balance}
+h3{font-size:1.1875rem;line-height:1.3;margin:0 0 .375rem}
+.intro{max-width:38rem;color:var(--muted);margin:0 0 2.25rem;text-wrap:pretty}
+p{margin:0 0 1rem}
+ul{padding-left:1.25rem;margin:0}
+li{margin-bottom:.5rem}
+
+/* the status rail: each step carries the colour of its real queue status */
+.rail{list-style:none;padding:0;margin:0;display:grid;gap:2rem}
+.rail li{margin:0;padding:0 0 0 1.25rem;border-left:4px solid var(--c)}
+.rail .s{display:inline-block;font-family:var(--mono);font-size:.875rem;color:var(--c);margin-bottom:.5rem}
+.rail p{max-width:30rem}
+.pending{--c:var(--wait)}.approved{--c:var(--go)}.posted{--c:var(--ink)}
+
+/* capabilities */
+.cols{display:grid;gap:2.25rem}
+.cols ul{list-style:none;padding:0}
+.cols li{padding:.5rem 0;margin:0;border-bottom:1px solid var(--line)}
+.cols li:last-child{border-bottom:0}
+.cols .k{color:var(--muted);font-size:.9375rem;margin:0 0 .5rem}
+.cols code{overflow-wrap:anywhere}
+
+/* guardrails */
+.split{display:grid;gap:2.5rem;align-items:start}
+.guards{display:grid;gap:1.5rem}
+.guards p{margin:0;max-width:34rem}
+
+/* limits */
+.limits{list-style:none;padding:0;display:grid;gap:1.25rem;max-width:44rem}
+.limits li{margin:0;padding-left:1rem;border-left:3px solid var(--line)}
+.limits li:first-child,.limits li:nth-child(2){border-left-color:var(--stop)}
+.limits b{display:block}
+
+/* install */
+.install ol{padding-left:1.25rem;max-width:44rem}
+.install li{margin-bottom:1.5rem}
+.install pre{margin-top:.5rem}
+
+footer{border-top:1px solid var(--line);padding-block:2rem 3rem;color:var(--muted);font-size:.9375rem}
+footer nav{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;margin-bottom:1rem}
+footer p{max-width:44rem}
+
+@media (min-width:52rem){
+  .hero{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);padding-block:3.5rem 5rem}
+  .rail{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .rail li{border-left:0;border-top:4px solid var(--c);padding:1rem 0 0}
+  .cols{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+}
+@media (max-width:24rem){.top nav a:not(.gh){display:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="wrap top">
+  <a class="brand" href="./" translate="no"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6" fill="var(--go)"/><path d="M8 7v18M24 7v18M8 12h16M8 20h16" stroke="var(--on-go)" stroke-width="3" stroke-linecap="round"/></svg>rednote-gate</a>
+  <nav aria-label="Site">
+    <a href="#how">How it works</a>
+    <a href="#limits">Limits</a>
+    <a class="gh" href="https://github.com/YashShelar007/rednote-gate">GitHub</a>
+  </nav>
+</header>
+
+<main id="main">
+<div class="wrap hero">
+  <div>
+    <h1>Nothing posts until you click Approve.</h1>
+    <p class="lede">rednote-gate lets Claude Code, Claude Desktop or Codex help run one RedNote (Xiaohongshu) account. Claude researches, drafts notes and replies, and queues them. Each post, comment, reply and like waits on a page on your own computer until you approve it.</p>
+    <p class="warn">For one throwaway account only. It drives the RedNote website with a browser, which is against RedNote's terms, and the account can be banned.</p>
+    <pre tabindex="0" aria-label="Install commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
+<span class="p">$ </span>cd rednote-gate
+<span class="p">$ </span>npm run setup</code></pre>
+    <div class="cta">
+      <a class="button" href="https://github.com/YashShelar007/rednote-gate">View on GitHub</a>
+      <a href="https://github.com/YashShelar007/rednote-gate#readme">Read the README</a>
+    </div>
+  </div>
+  <figure>
+    <picture>
+      <source srcset="assets/approval-dark.png" media="(prefers-color-scheme: dark)">
+      <img class="shot" src="assets/approval-light.png" width="760" height="900" alt="The approval page. A photo note titled Weekend hike, three hours, is waiting, with its body, topics and two images, and buttons to approve a dry run or reject it. Meters show 1 of 5 writes and 2 of 10 likes used today." fetchpriority="high">
+    </picture>
+    <figcaption>The approval page, rendered from rednote-gate's own code with made-up data.</figcaption>
+  </figure>
+</div>
+
+<section id="how" class="wrap" aria-labelledby="h-how">
+  <h2 id="h-how">How it works</h2>
+  <p class="intro">Every write moves through the same three states. Only your click moves it from the first to the second.</p>
+  <ol class="rail">
+    <li class="pending">
+      <span class="s">pending</span>
+      <h3>Claude drafts</h3>
+      <p>Ask in plain words, or use a slash command. Claude writes the note, comment or reply and adds it to a queue. Nothing opens on RedNote. The approval page opens in your browser.</p>
+    </li>
+    <li class="approved">
+      <span class="s">approved</span>
+      <h3>You approve</h3>
+      <p>The page shows the exact title, body and images. Click Approve or Reject. You then have 30 seconds to cancel. Saying &ldquo;yes, post it&rdquo; to Claude changes nothing.</p>
+    </li>
+    <li class="posted">
+      <span class="s">posted</span>
+      <h3>It posts and shows you</h3>
+      <p>A browser on your computer does the steps on the site. When it ends, the page shows a screenshot of what the browser showed, so you can see what happened.</p>
+    </li>
+  </ol>
+</section>
+
+<section id="can" class="wrap" aria-labelledby="h-can">
+  <h2 id="h-can">What it can do</h2>
+  <p class="intro">Reads run straight away. Writes only add an item to the queue. Workflows chain them together as slash commands in Claude Code.</p>
+  <div class="cols">
+    <div>
+      <h3>Reads</h3>
+      <p class="k">Run at once, no approval needed.</p>
+      <ul>
+        <li>Search notes by keyword</li>
+        <li>Read a note: title, body, tags, likes and more</li>
+        <li>Read a note's comments (first page)</li>
+        <li>List your own notes, newest first</li>
+        <li>Make text-card images on your computer for notes without photos</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Writes</h3>
+      <p class="k">Each one waits for your Approve click.</p>
+      <ul>
+        <li>Photo notes with 1 to 9 images, linked topics and emoji</li>
+        <li>Video notes</li>
+        <li>Drafts</li>
+        <li>Comments on a note</li>
+        <li>Replies to a comment</li>
+        <li>Likes, with their own daily cap</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Workflows</h3>
+      <p class="k">Slash commands in Claude Code.</p>
+      <ul>
+        <li><code translate="no">post_photos</code>: a note from your photos and a one-line brief</li>
+        <li><code translate="no">post_from_concept</code>: research a concept, write an original note, render text cards</li>
+        <li><code translate="no">reply_to_comments</code>: draft up to 3 replies</li>
+        <li><code translate="no">research_topic</code>: summarise what works for a topic, read only</li>
+        <li><code translate="no">review_queue</code>: what is waiting and what happened</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="safety" class="wrap" aria-labelledby="h-safety">
+  <h2 id="h-safety">Safety and guardrails</h2>
+  <p class="intro">Of nine RedNote automation projects read on 2026-10-06, none enforced a per-item human approval in code. Four asked the AI to check with you, which an AI can skip. These rules live in code.</p>
+  <div class="split">
+    <div class="guards">
+      <div><h3>Approval in code, not in chat</h3><p>Write tools can only queue. The worker acts only on items a human approved on the local page.</p></div>
+      <div><h3>What you approve is what posts</h3><p>Images are copied and hashed when queued and checked again before upload. Every field is read back before the final click.</p></div>
+      <div><h3>Daily limits from a ledger</h3><p>5 writes, 10 likes and one comment every 10 minutes by default. They come from an append-only ledger, so a restart does not reset them. The settings page can change them, never past 20 writes, 50 likes or 2 minutes between comments.</p></div>
+      <div><h3>Stops on a captcha</h3><p>A captcha or a &ldquo;too frequent&rdquo; warning stops everything until you click Resume. It never solves captchas and never retries.</p></div>
+      <div><h3>A screenshot of every attempt</h3><p>After each attempt the page shows what the browser showed at the end. An attempt that ends in doubt is marked unknown and is never retried.</p></div>
+      <div><h3>Dry run first</h3><p>It starts in dry run: approved items fill in the form but never publish. Going live on the settings page takes a confirmation tick.</p></div>
+    </div>
+    <figure>
+      <picture>
+        <source srcset="assets/settings-dark.png" media="(prefers-color-scheme: dark)">
+        <img class="shot" src="assets/settings-light.png" width="760" height="900" alt="The settings page: dry run or live mode with a confirmation tick, writes per day 5, likes per day 10, minutes between comments 10, and notification options." loading="lazy">
+      </picture>
+      <figcaption>The settings page, also from the repo's own code with made-up data.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="limits" class="wrap" aria-labelledby="h-limits">
+  <h2 id="h-limits">Honest limits</h2>
+  <p class="intro">Read these before you set it up.</p>
+  <ul class="limits">
+    <li><b>It is against RedNote's terms.</b> It drives the website with a real browser and a real logged-in session. The README lists the anti-bot measures it uses.</li>
+    <li><b>Use one throwaway account.</b> The account can be rate limited, restricted or banned. Never use a primary or brand account.</li>
+    <li><b>Drafts stay in the browser.</b> RedNote's website keeps drafts in the browser, so a draft saved here does not show up in your phone app.</li>
+    <li><b>Keep browser tools out of the same session.</b> An AI with its own browser tool could open the approval page and click Approve.</li>
+    <li><b>Pages change.</b> When RedNote changes its site, a flow can break until someone updates it.</li>
+  </ul>
+</section>
+
+<section id="install" class="wrap install" aria-labelledby="h-install">
+  <h2 id="h-install">Install</h2>
+  <p class="intro">You need Node 20 or newer, a RedNote account made for this, and the phone that account is logged in on.</p>
+  <ol>
+    <li>Clone the repo and run setup. It installs Chromium, builds, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code.
+<pre tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
+<span class="p">$ </span>cd rednote-gate
+<span class="p">$ </span>npm run setup</code></pre></li>
+    <li>Ask Claude for something, such as &ldquo;post these two photos about my hike&rdquo;. Approve it on the page that opens. It runs as a dry run.</li>
+    <li>When a dry run looks right, switch to live and open a new Claude Code session.
+<pre tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>npm run live</code></pre></li>
+  </ol>
+  <p>For Claude Desktop or Codex, see <a href="https://github.com/YashShelar007/rednote-gate#wiring-into-claude-code-claude-desktop-and-codex">the README</a>.</p>
+</section>
+</main>
+
+<footer class="wrap">
+  <nav aria-label="Project">
+    <a href="https://github.com/YashShelar007/rednote-gate">GitHub</a>
+    <a href="https://github.com/YashShelar007/rednote-gate#readme">README</a>
+    <a href="https://github.com/YashShelar007/rednote-gate/blob/main/CHANGELOG.md">Changelog</a>
+    <a href="https://github.com/YashShelar007/rednote-gate/blob/main/docs/landscape.md">How it compares</a>
+    <a href="https://github.com/YashShelar007/rednote-gate/blob/main/LICENSE">MIT license</a>
+  </nav>
+  <p>rednote-gate is unofficial. It is not affiliated with, endorsed by or connected to RedNote or Xiaohongshu. RedNote and Xiaohongshu are trademarks of their owner. Made by Yash Shelar.</p>
+</footer>
+</body>
+</html>
