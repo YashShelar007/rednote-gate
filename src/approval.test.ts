@@ -125,6 +125,18 @@ test("Reject and Cancel both end at rejected", async () => {
   s.close();
 });
 
+test("the page says whether RedNote's AI label will be set", async () => {
+  const s = await setup();
+  const src = join(mkdtempSync(join(tmpdir(), "rng-img-")), "a.png");
+  writeFileSync(src, Buffer.from("89504e470d0a1a0a0000", "hex"));
+  enqueue(s.dir, "create_post", { title: "ai", body: "b", images: [src], aiGenerated: true });
+  enqueue(s.dir, "create_post", { title: "mine", body: "b", images: [src] });
+  const body = (await s.call("GET", `/?t=${TOKEN}`)).body;
+  assert.match(body, /AI label<\/dt><dd>Yes: RedNote shows 笔记含AI合成内容/);
+  assert.match(body, /AI label<\/dt><dd>No/);
+  s.close();
+});
+
 test("images are served only from the queue, by item id and index", async () => {
   const s = await setup();
   const src = join(mkdtempSync(join(tmpdir(), "rng-img-")), "a.png");

@@ -9,12 +9,13 @@ export type Tool = "create_post" | "create_draft" | "create_video" | "post_comme
 export type Status = "pending" | "approved" | "rejected" | "posting" | "posted" | "dry_run" | "failed" | "unknown";
 
 /** images are paths relative to the queue folder, e.g. "q_20261006T120000_ab12/0.png". */
-export type PostArgs = { title: string; body: string; images: string[]; topics?: string[] };
+// aiGenerated: Claude wrote or polished the text, so RedNote's own AI label is set when it posts.
+export type PostArgs = { title: string; body: string; images: string[]; topics?: string[]; aiGenerated?: boolean };
 export type CommentArgs = { noteUrl: string; text: string };
 export type ReplyArgs = { noteUrl: string; commentId: string; commentAuthor: string; commentText: string; text: string };
 export type LikeArgs = { noteUrl: string; noteTitle?: string };
 /** video is a path relative to the queue folder, e.g. "q_20261006T120000_ab12/video.mp4". */
-export type VideoArgs = { title: string; body: string; video: string; topics?: string[] };
+export type VideoArgs = { title: string; body: string; video: string; topics?: string[]; aiGenerated?: boolean };
 export type Args = PostArgs | CommentArgs | ReplyArgs | LikeArgs | VideoArgs;
 
 export interface Item {

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.1] - 2026-10-08
+
+### Added
+- RedNote's own AI label. RedNote's rules of 2026-04-27 ask creators to label AI-written or AI-polished notes. `rednote_create_post`, `rednote_create_draft` and `rednote_create_video_post` take `aiGenerated`; the `post_photos` and `post_from_concept` workflows set it, because Claude writes the text there. Publishing then ticks 内容类型声明, 笔记含AI合成内容, and stops before the final click if the label does not stick. The approval page shows "AI label: Yes" or "No" for every post, and the label is part of what you approve. Not yet checked on the live site; the first dry run with the label checks it.
+- Listed in the official MCP Registry as `io.github.YashShelar007/rednote-gate` (`server.json`, and `mcpName` in package.json).
+
+### Fixed
+- The stop banner read "RedNote showed: RedNote showed ...". It now says it once.
+
 ## [1.1.0] - 2026-10-07
 
 ### Added

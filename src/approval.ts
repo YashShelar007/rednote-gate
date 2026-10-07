@@ -91,12 +91,12 @@ function content(item: Item, t: string): string {
       .map((_, n) => `<li><img src="/img/${item.id}/${n}?t=${t}" width=144 height=144 alt="Image ${n + 1}${n === 0 ? ", cover" : ""}" loading=lazy><span>${n === 0 ? "1, cover" : n + 1}</span></li>`)
       .join("");
     const topics = a.topics?.length ? `<dt>Topics</dt><dd>${a.topics.map((t) => `#${esc(t)}`).join(" ")}</dd>` : "";
-    return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd>${topics}<dt>Images, in posting order</dt><dd><ol class=imgs>${imgs}</ol></dd></dl>`;
+    return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd>${topics}${aiLabel(a)}<dt>Images, in posting order</dt><dd><ol class=imgs>${imgs}</ol></dd></dl>`;
   }
   if (item.tool === "create_video") {
     const a = item.args as VideoArgs;
     const topics = a.topics?.length ? `<dt>Topics</dt><dd>${a.topics.map((t) => `#${esc(t)}`).join(" ")}</dd>` : "";
-    return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd>${topics}<dt>Video</dt><dd><video class=shot controls preload=metadata src="/media/${item.id}?t=${t}"></video></dd></dl>`;
+    return `<dl><dt>Title</dt><dd class=title>${esc(a.title)}</dd><dt>Body</dt><dd class=text>${esc(a.body)}</dd>${topics}${aiLabel(a)}<dt>Video</dt><dd><video class=shot controls preload=metadata src="/media/${item.id}?t=${t}"></video></dd></dl>`;
   }
   if (item.tool === "like_note") {
     const a = item.args as LikeArgs;
@@ -107,6 +107,10 @@ function content(item: Item, t: string): string {
   const target = item.tool === "reply_comment" ? `<dt>Replying to ${esc(a.commentAuthor)}</dt><dd class="text quote">${esc(a.commentText)}</dd>` : "";
   return `<dl>${note}${target}<dt>${item.tool === "reply_comment" ? "Your reply" : "Your comment"}</dt><dd class=text>${esc(a.text)}</dd></dl>`;
 }
+
+/** RedNote asks for AI-written notes to carry its label; the human sees which way this one goes. */
+const aiLabel = (a: { aiGenerated?: boolean }) =>
+  `<dt>AI label</dt><dd>${a.aiGenerated ? "Yes: RedNote shows 笔记含AI合成内容 on the note." : "No. Only for text you wrote yourself."}</dd>`;
 
 function card(item: Item, t: string, mode: string, buttons: Array<[action: string, label: string]>, note = "", shot = false): string {
   const forms = buttons
