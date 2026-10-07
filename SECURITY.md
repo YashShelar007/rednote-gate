@@ -10,7 +10,7 @@ Include what you found, how to reproduce it, and what an attacker could do. Do n
 
 ## The session file is a credential
 
-`.session/state.json` holds a logged-in RedNote session. Anyone with it can act as that account. Keep it out of git, issues, PRs, logs and screenshots. If it leaks, log out of RedNote on all devices and run `npm run login` again.
+`~/.rednote-gate/.session/state.json` holds a logged-in RedNote session. A clone that had a login before 1.1 keeps it in `.session/state.json` inside the clone. Anyone with it can act as that account. Keep it out of git, issues, PRs, logs and screenshots. If it leaks, log out of RedNote on all devices and run `rednote-gate login` again.
 
 ## In scope
 

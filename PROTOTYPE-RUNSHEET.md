@@ -17,7 +17,7 @@ The goal is not the posts. The goal is the capture blocks at the bottom. They ar
    ```
 
    Scan the QR code with the throwaway phone. Let it finish the visit to creator.xiaohongshu.com.
-3. **Add rednote-gate to your MCP client** as shown in the README. Leave `RN_DRY_RUN` unset or `1`. Leave `RN_HEADLESS` unset, so the browser window is visible.
+3. **Add rednote-gate to your MCP client** as shown in the README. Run `npm run dry` so it starts in dry run. The mode saved in `settings.json` wins over `RN_DRY_RUN`. Leave `RN_HEADLESS` unset, so the browser window is visible.
 4. **Remove every browser MCP from that client session.** Never load a browser MCP such as `@playwright/mcp` in the same client session as rednote-gate. An agent with a browser could open the approval page and click Approve. In Claude Code, run `claude mcp list` and check before every session.
 
 ## Rules for every session
@@ -57,14 +57,14 @@ Order: publish, draft, comment, reply. One flow per evening. Example schedule:
 
 Each write flow goes the same way:
 
-1. **Dry run.** With `RN_DRY_RUN=1`, ask the agent to queue the write. It returns a queue id.
+1. **Dry run.** In dry run (`npm run dry`), ask the agent to queue the write. It returns a queue id.
 2. Run `npm run approve` from the repo root and open the link. Check that the page says DRY RUN. Check the exact content. Click Approve. The worker starts about 30 seconds later; Cancel works until then.
 3. Watch the window. Within about 10 seconds the worker opens the page, uploads images and types the text. It stops before the final click. Note that dry run still uploads images to RedNote's creator page.
 4. Check the item is `dry_run` (ask the agent for `rednote_queue_status`). Look at `data/screenshots/<id>.png` and the last lines of `data/ledger.jsonl`.
-5. **Live.** If the dry run looked right, set `RN_DRY_RUN=0` in the client config and restart the client. Get a fresh approval link: the token changes on every start. Check the page says LIVE.
+5. **Live.** If the dry run looked right, run `npm run live` and confirm. It stops the service, and the next tool call starts it with a new token, so get a fresh link with `npm run approve`. Check the page says LIVE.
 6. Ask the agent to queue the same write again. A finished dry run does not block an identical item, so you get a new id. Approve it once. Watch.
 7. Check the item is `posted`. Then check on the phone that it really appeared.
-8. Set `RN_DRY_RUN` back to `1` and restart the client.
+8. Run `npm run dry`.
 9. Fill the capture block. Update the README table with the date and result.
 
 Flow notes:

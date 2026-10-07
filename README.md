@@ -89,7 +89,7 @@ A short example:
 2. Claude calls `rednote_create_post`. The server checks the image, copies it into the queue and hashes it. It returns a queue id such as `q_20261006T153012_ab12`. No browser opens. Nothing is posted.
 3. You run `rednote-gate approve` and open the link it prints. The page shows the exact title, body and image. You click Approve.
 4. The worker checks the queue every 10 seconds. It waits 30 seconds after your click, so you can still press Cancel, then picks up the item if the budget allows. It writes an `attempt` line to the ledger, then opens the creator page, uploads the image and types the text.
-5. In dry run mode (the default) it stops before the final click. The item becomes `dry_run`. In live mode (`RN_DRY_RUN=0`) it clicks publish. The item becomes `posted`.
+5. In dry run mode (the default) it stops before the final click. The item becomes `dry_run`. In live mode (`rednote-gate live`) it clicks publish. The item becomes `posted`.
 6. Claude can call `rednote_queue_status` to see the result. It never gets the approval link.
 
 Clicking Approve only marks the item. It does not post anything by itself. There is no approval in chat. Telling Claude "yes, post it" changes nothing.
@@ -117,7 +117,7 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 
 ## Guardrails
 
-- **Approval in code.** Write tools only queue. The worker clicks the final button only when `RN_DRY_RUN=0` and the item is approved.
+- **Approval in code.** Write tools only queue. The worker clicks the final button only in live mode, and only on an approved item.
 - **What you approve is what posts.** Images are copied into the queue and hashed when queued. Only real JPEG, PNG or WebP files pass, checked by file signature. Each image can be at most 20 MB. A note takes 1 to 9 images. That is a project limit, not RedNote's.
 - **Daily budget.** At most `RN_DAILY_WRITES` live attempts (default 5) in any rolling 24 hours. Comments and replies also need `RN_COMMENT_GAP_MIN` minutes (default 10) since the last live comment or reply attempt. The budget is worked out from the ledger, so a restart does not reset it. Failed and unknown live attempts count. Dry runs do not. An approved item over budget waits. The approval page shows when the next slot opens.
 - **Undo window.** The worker waits 30 seconds after Approve. Until then, Cancel stops it.
@@ -128,7 +128,7 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 - **Halt on friction.** If RedNote shows a captcha or a "too frequent" warning, rednote-gate writes a `blocked` line to the ledger. It stops the worker and refuses read tools. Write tools can still queue, since queuing never touches the browser. It does not retry. The halt survives a restart. A human clicks Resume on the approval page to continue.
 - **No bare note URLs.** URLs without `xsec_token` are refused before the browser opens.
 - **One browser owner.** Only the service drives the browser, guarded by a lock file in `data/`. Every MCP client (Claude Code, Claude Desktop, Codex, several sessions at once) talks to that one service, so there is never a second browser on the account.
-- **Dry run by default.** `RN_DRY_RUN` is `1` unless you set it to `0`.
+- **Dry run by default.** It stays in dry run until you run `rednote-gate live` or go live on the Settings page. The mode saved in `settings.json` wins over `RN_DRY_RUN`.
 
 ## Terms of service warning
 
@@ -373,7 +373,6 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 - **Drafts stay in rednote-gate's browser.** RedNote's web creator site keeps drafts in the browser, not in your account (its own notice says so). A draft saved by rednote-gate does not appear in your phone app. rednote-gate keeps it across restarts by saving the browser's IndexedDB with the session; to finish it, open the creator site's 草稿箱 in rednote-gate's browser.
 - **Comments are first page only.**
 - **Headed by default.** A Chromium window opens when a browser tool runs and stays open as one tab. Set `RN_HEADLESS=1` once you trust it.
-- **Writes are not verified live yet.** See the table below.
 
 ## Anti-bot measures (disclosed on purpose)
 
