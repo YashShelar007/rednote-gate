@@ -92,6 +92,10 @@ const post = {
     .describe("note body; line breaks and emoji are kept; no # here"),
   topics: z.array(topic).max(5).optional().describe("up to 5 topics without #, added as RedNote topics at the end of the body"),
   images: z.array(z.string()).min(1).max(9).describe("absolute paths to JPEG, PNG or WebP files, in posting order; the first is the cover"),
+  aiGenerated: z
+    .boolean()
+    .optional()
+    .describe("true if you wrote or polished the title or body: RedNote's own AI label (笔记含AI合成内容) is then set. Omit only when the user gave you the exact text."),
 };
 
 const server = new McpServer({ name: "rednote-gate", version: VERSION });
@@ -127,7 +131,7 @@ server.registerTool(
   "rednote_create_video_post",
   {
     description: "Queue a video note for human approval. Does NOT post. One MP4 or MOV, absolute path, up to 500 MB. RedNote processes the video after upload, which can take minutes.",
-    inputSchema: { title, body: post.body, video: z.string().describe("absolute path to an MP4 or MOV file"), topics: post.topics },
+    inputSchema: { title, body: post.body, video: z.string().describe("absolute path to an MP4 or MOV file"), topics: post.topics, aiGenerated: post.aiGenerated },
   },
   (a) => queue("create_video", a),
 );
@@ -212,7 +216,7 @@ server.registerPrompt(
       `${!photos || !about ? "First ask the user for whatever is missing: the photo paths (cover first) and what the note is about. Then continue.\n" : ""}` +
         `Draft a RedNote photo note about: ${about ?? "(ask the user)"}\nPhotos, in this order (the first is the cover): ${photos ?? "(ask the user)"}\n` +
         "Write it the way people write on RedNote: a catchy title and a warm, specific body with short paragraphs; emoji are fine. Put 3 to 5 relevant topics in the topics field (no # in the body). " +
-        "Match the language of the brief. Then call rednote_create_post with the photos in the given order. Show the user the title and body you queued. " +
+        "Match the language of the brief. Then call rednote_create_post with the photos in the given order and aiGenerated: true, since you wrote the text. Show the user the title and body you queued. " +
         RULES,
     ),
 );
@@ -229,7 +233,7 @@ server.registerPrompt(
         "1. Research: rednote_search for the concept (limit 10), then read the 2 or 3 most-liked notes with rednote_get_note. Note what titles, angles and tips get likes. One call at a time.\n" +
         "2. Write an original note (never copy others' text): a catchy title, a useful body with short paragraphs and concrete tips, emoji welcome, and 3 to 5 topics in the topics field. Match the concept's language.\n" +
         "3. Make 3 to 5 cards with rednote_make_cards: card 1 is the cover (the hook as title, one short subtitle line), the rest carry the key points, 3 to 6 short lines each. Pick one theme for the set.\n" +
-        "4. Queue it with rednote_create_post using the card paths in order. Show the user the title, body and topics you queued. " +
+        "4. Queue it with rednote_create_post using the card paths in order and aiGenerated: true. Show the user the title, body and topics you queued. " +
         RULES,
     ),
 );

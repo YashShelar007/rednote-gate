@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { enqueue, listItems, readItem, recoverInterrupted, transition } from "./queue.js";
+import { enqueue, listItems, readItem, recoverInterrupted, transition, type PostArgs } from "./queue.js";
 
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 const fresh = () => mkdtempSync(join(tmpdir(), "rng-queue-"));
@@ -121,4 +121,14 @@ test("a dry run cut off by a crash becomes failed, since it never clicks the fin
 
 test("ids that could escape the queue folder are refused", () => {
   assert.throws(() => readItem(fresh(), "../../.session/state"), /bad queue id/);
+});
+
+test("the AI label is part of what is approved: the same post with and without it are two items", () => {
+  const dir = fresh();
+  const images = [png(dir)];
+  const plain = enqueue(dir, "create_post", { title: "t", body: "b", images });
+  const labelled = enqueue(dir, "create_post", { title: "t", body: "b", images, aiGenerated: true });
+  assert.equal(labelled.duplicate, false);
+  assert.notEqual(labelled.item.contentHash, plain.item.contentHash);
+  assert.equal((readItem(dir, labelled.item.id).args as PostArgs).aiGenerated, true);
 });

@@ -160,7 +160,7 @@ async function assertNotBlocked(page: Page) {
   const url = page.url();
   const text = await page.locator("body").innerText({ timeout: 5_000 }).catch(() => "");
   const hit = BLOCK_TEXT.find((t) => text.includes(t)) ?? (/captcha/i.test(url) ? "a captcha page" : undefined);
-  if (hit) throw new BlockedError(`RedNote showed "${hit}" at ${url.split("?")[0]}`);
+  if (hit) throw new BlockedError(`"${hit}" at ${url.split("?")[0]}`); // callers say "RedNote showed"
 }
 
 /** The same page on this account's own domain: a login cookie only works on its own domain. */
@@ -325,6 +325,7 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
     await typeHuman(page, SEL.postTitle, a.title);
     await typeHuman(page, SEL.postBody, a.body);
     for (const t of a.topics ?? []) await addTopic(page, t);
+    if (a.aiGenerated) await addAiLabel(page);
     await assertTyped(page, SEL.postTitle, a.title, true);
     const typed = await page.locator(SEL.postBody).first().innerText();
     if (!bodyMatches(typed, a.body, a.topics ?? [])) throw new Error(`The body reads "${squash(typed).slice(0, 80)}" instead of the approved text and topics. Not sending.`);
@@ -338,6 +339,17 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
     else await page.waitForURL((u) => !u.pathname.includes("/publish/publish"), { timeout: 30_000 }); // success leaves the page
     await assertNotBlocked(page);
   }, screenshot);
+}
+
+/** RedNote's own AI label: 内容类型声明, then 笔记含AI合成内容 (its documented publish flow, 2025-09-01).
+ *  Throws before the final click if the label cannot be set, so a labelled item never goes out without it. */
+async function addAiLabel(page: Page) {
+  // ponytail: found by visible text, unverified on the live page until the first dry run with the label.
+  await page.locator(`:is(div,span,button)${SEEN}`).filter({ hasText: /^\s*(添加)?内容类型声明\s*$/ }).last().click({ timeout: 10_000 });
+  await page.waitForTimeout(rand(500, 900));
+  await page.locator(`:is(div,span,li,label)${SEEN}`).filter({ hasText: /^\s*笔记含AI合成内容\s*$/ }).last().click({ timeout: 10_000 });
+  await page.waitForTimeout(rand(500, 900));
+  if (!(await page.locator(`:is(div,span)${SEEN}`).filter({ hasText: /笔记含AI合成内容/ }).first().isVisible())) throw new Error("RedNote's AI label (笔记含AI合成内容) did not stick. Not sending.");
 }
 
 /** Types "#topic" at the end of the body. If the picker offers exactly that topic, click it so it
@@ -393,6 +405,7 @@ function publishVideo(a: VideoArgs, screenshot: string, dryRun: boolean, p: Prog
     await typeHuman(page, SEL.postTitle, a.title);
     await typeHuman(page, SEL.postBody, a.body);
     for (const t of a.topics ?? []) await addTopic(page, t);
+    if (a.aiGenerated) await addAiLabel(page);
     await assertTyped(page, SEL.postTitle, a.title, true);
     const typed = await page.locator(SEL.postBody).first().innerText();
     if (!bodyMatches(typed, a.body, a.topics ?? [])) throw new Error(`The body reads "${squash(typed).slice(0, 80)}" instead of the approved text and topics. Not sending.`);
