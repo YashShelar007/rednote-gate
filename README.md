@@ -134,6 +134,10 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 
 This project drives the RedNote website with a real browser and a real logged-in session. RedNote's terms do not allow this. Using it can get the account rate limited, restricted or banned. That risk is yours.
 
+Two Xiaohongshu notices from 2026 also apply (checked 2026-10-07). On 2026-03-10 it announced action against "AI 托管" (AI hosting) accounts ([IT之家 report](https://www.ithome.com/0/927/689.htm)). An account that now and then lets AI hosting write, post or interact for it gets warnings and reduced distribution. An account that registers, posts or interacts directly through AI hosting tools is banned, and so is one whose public notes were all posted that way. On 2026-04-27 it published rules for AI content ([IT之家 report](https://www.ithome.com/0/944/156.htm)). Creators should label notes that AI generated or polished when they publish them, and the platform adds its own label to AI content left unlabeled. Using AI to run an account against the rules is punished in steps, up to a ban.
+
+An Approve click does not make an account compliant. A throwaway account that only posts through rednote-gate matches the ban description in the March notice.
+
 - Use ONE dedicated throwaway account. Never a primary account. Never a brand account.
 - Keep writes few and far apart. The budget is a ceiling, not a target.
 - Respect the law where you live and the people whose notes you read or reply to.
