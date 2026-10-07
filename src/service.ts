@@ -14,7 +14,7 @@ import { DATA, LEDGER, PORT, QUEUE, SETTINGS_FILE, SHOTS, URL_FILE, current, lim
 const IDLE_CLOSE_MS = 5 * 60_000; // close the browser window after 5 quiet minutes
 const STOPPED = "Stopped: RedNote showed a captcha or a warning. Check the account, then press Resume.";
 
-mkdirSync(QUEUE, { recursive: true });
+mkdirSync(QUEUE, { recursive: true, mode: 0o700 }); // owner-only: queue text, ledger, approval link
 const lock = acquireLock(DATA);
 if (!lock.ok) {
   log(`already running (pid ${lock.pid}).`);

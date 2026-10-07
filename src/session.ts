@@ -2,13 +2,15 @@
 // credential: owner-only permissions, git-ignored, never printed.
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveHome } from "./home.js";
 
-/** The repo root, so paths work no matter which folder the MCP client starts us from. */
+/** The package root, so paths work no matter which folder the MCP client starts us from. */
 export const ROOT = fileURLToPath(new URL("..", import.meta.url));
-export const DATA_DIR = process.env.RN_DATA_DIR || join(ROOT, "data");
-const SESSION_PATH = process.env.RN_SESSION_PATH || join(ROOT, ".session", "state.json");
+/** ~/.rednote-gate by default; see home.ts. */
+export const { home: HOME, dataDir: DATA_DIR, sessionPath: SESSION_PATH } = resolveHome(process.env, ROOT, homedir(), existsSync);
 const SITE_FILE = join(dirname(SESSION_PATH), "site");
 const HEADLESS = process.env.RN_HEADLESS === "1";
 

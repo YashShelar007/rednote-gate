@@ -17,7 +17,7 @@ import { site } from "./session.js";
 import { DATA, LEDGER, QUEUE, URL_FILE, current, limitsOf, notify } from "./config.js";
 
 const SERVICE = fileURLToPath(new URL("./service.js", import.meta.url));
-mkdirSync(QUEUE, { recursive: true });
+mkdirSync(QUEUE, { recursive: true, mode: 0o700 }); // owner-only: queue text, ledger, approval link
 
 const text = (data: unknown) => ({ content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
 
