@@ -9,7 +9,7 @@ rednote-gate is a local MCP server for ONE throwaway RedNote account. Reads run 
 ## Rules
 
 - Only ever use the dedicated throwaway account. Never a primary or brand account.
-- Never load a browser MCP, such as `@playwright/mcp`, in the same client session as rednote-gate. An agent with a browser could click Approve.
+- Never load a browser MCP server, such as `@playwright/mcp`, in the same host session as rednote-gate. An agent with a browser could click Approve.
 - AI sessions never approve anything. Do not read `data/approval-url`, open the approval page or call its endpoints. Do not read or print `.session/state.json`. Approval is the human's job.
 - Do not add any path that posts without an approved queue item. Do not add retries after `unknown` or after a block.
 - Every DOM selector lives in the `SEL` object in `src/rednote.ts`. Nowhere else.
@@ -22,7 +22,7 @@ rednote-gate is a local MCP server for ONE throwaway RedNote account. Reads run 
 | --- | --- |
 | `src/cli.ts` | The `rednote-gate` command and the package bin. No arguments runs the MCP server (`index.ts`). Subcommands: setup, login, connect, live, dry, stop, approve, status, doctor, help. |
 | `src/home.ts` | Where data and the login live: `RN_HOME`, else a clone that already has `.session/`, else `~/.rednote-gate`. |
-| `src/index.ts` | MCP stdio entry point, kept thin. Registers the tools and workflow prompts. Writes go to the queue; reads go to the service, which it starts if needed. |
+| `src/index.ts` | MCP stdio entry point, kept thin. Registers the tools and prompts. Writes go to the queue; reads go to the service, which it starts if needed. |
 | `src/queue.ts` | The queue. One JSON file per write. Image checks, copying and hashing. Status changes. Duplicate check. |
 | `src/ledger.ts` | Append-only `ledger.jsonl`. Budget and halt state are worked out from it. |
 | `src/worker.ts` | Takes the oldest approved item that fits the budget. Writes the ledger lines around each attempt. |

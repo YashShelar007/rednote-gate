@@ -344,7 +344,7 @@ function publish(a: PostArgs, draft: boolean, screenshot: string, dryRun: boolea
 /** RedNote's own AI label: 内容类型声明, then 笔记含AI合成内容 (its documented publish flow, 2025-09-01).
  *  Throws before the final click if the label cannot be set, so a labelled item never goes out without it. */
 async function addAiLabel(page: Page) {
-  // ponytail: found by visible text, unverified on the live page until the first dry run with the label.
+  // ponytail: found by visible text (checked in a dry run on rednote.com, 2026-10-07); breaks if RedNote renames the control.
   await page.locator(`:is(div,span,button)${SEEN}`).filter({ hasText: /^\s*(添加)?内容类型声明\s*$/ }).last().click({ timeout: 10_000 });
   await page.waitForTimeout(rand(500, 900));
   await page.locator(`:is(div,span,li,label)${SEEN}`).filter({ hasText: /^\s*笔记含AI合成内容\s*$/ }).last().click({ timeout: 10_000 });

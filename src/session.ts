@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveHome } from "./home.js";
 
-/** The package root, so paths work no matter which folder the MCP client starts us from. */
+/** The package root, so paths work no matter which folder the MCP host starts us from. */
 export const ROOT = fileURLToPath(new URL("..", import.meta.url));
 /** ~/.rednote-gate by default; see home.ts. */
 export const { home: HOME, dataDir: DATA_DIR, sessionPath: SESSION_PATH } = resolveHome(process.env, ROOT, homedir(), existsSync);

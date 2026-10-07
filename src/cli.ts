@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The `rednote-gate` command. No arguments runs the MCP server, which is what MCP clients start.
+// The `rednote-gate` command. No arguments runs the MCP server, which is what the MCP host starts.
 // Subcommands set it up and look after it. None of them contacts RedNote except `login` and `setup`.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
@@ -72,7 +72,7 @@ Usage: rednote-gate [command]
 
 Data and login: ${HOME} (set RN_HOME to move them).`;
 
-/** Values a client must also see, made absolute because MCP clients start us in another folder. */
+/** Values the server must also see, made absolute because the MCP host starts us in another folder. */
 function passEnv(): Record<string, string> {
   const set = { RN_HOME: HOME, RN_DATA_DIR: DATA_DIR, RN_SESSION_PATH: SESSION_PATH };
   return Object.fromEntries(Object.entries(set).filter(([k]) => process.env[k]).map(([k, v]) => [k, resolve(v)]));

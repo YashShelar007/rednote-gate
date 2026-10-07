@@ -14,7 +14,7 @@ test("help lists exactly the prompts the server registers", () => {
   assert.deepEqual(CATALOGUE.prompts.map((p) => p.name).sort(), registered("Prompt").sort());
 });
 
-test("help and the server call MCP prompts prompts, not workflows", () => {
+test("help text and index.ts say prompts, never workflows", () => {
   const text = helpText({ version: "1.0.0", site: "rednote.com", dryRun: true, writesUsed: 0, likesUsed: 0, limits: { daily: 5, commentGapMin: 10 } });
   assert.match(text, /^Prompts \(slash commands in Claude Code: \/rednote-gate:<name>\):$/m);
   assert.doesNotMatch(text + source("index.ts"), /workflow/i);

@@ -17,8 +17,8 @@ The goal is not the posts. The goal is the capture blocks at the bottom. They ar
    ```
 
    Scan the QR code with the throwaway phone. Let it finish the visit to creator.xiaohongshu.com.
-3. **Add rednote-gate to your MCP client** as shown in the README. Run `npm run dry` so it starts in dry run. The mode saved in `settings.json` wins over `RN_DRY_RUN`. Leave `RN_HEADLESS` unset, so the browser window is visible.
-4. **Remove every browser MCP from that client session.** Never load a browser MCP such as `@playwright/mcp` in the same client session as rednote-gate. An agent with a browser could open the approval page and click Approve. In Claude Code, run `claude mcp list` and check before every session.
+3. **Add rednote-gate to your MCP host** as shown in the README. Run `npm run dry` so it starts in dry run. The mode saved in `settings.json` wins over `RN_DRY_RUN`. Leave `RN_HEADLESS` unset, so the browser window is visible.
+4. **Remove every browser MCP server from that host session.** Never load a browser MCP server such as `@playwright/mcp` in the same host session as rednote-gate. An agent with a browser could open the approval page and click Approve. In Claude Code, run `claude mcp list` and check before every session.
 
 ## Rules for every session
 

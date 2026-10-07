@@ -33,20 +33,33 @@ npm run setup
 
 Same steps, plus the build. A clone that already has a login in `.session/` keeps its data in the clone folder.
 
-Then, in Claude Code:
+Then use rednote-gate's prompts. Claude Code shows them as slash commands:
 
-| Slash command | What happens |
+| Prompt (slash command) | What happens |
 | --- | --- |
 | `/rednote-gate:post_photos` | Claude writes a photo note from your photos and a one-line brief, and queues it |
 | `/rednote-gate:reply_to_comments` | Claude reads a note's comments, drafts up to 3 replies, and queues them |
 | `/rednote-gate:post_from_concept` | Claude researches a concept, writes an original note, renders text-card images, and queues it |
 | `/rednote-gate:research_topic` | Claude searches a topic, reads the top notes and comments, and summarises what works. Read only. |
 | `/rednote-gate:review_queue` | Claude summarises what is waiting and what happened |
-| `/rednote-gate:help` | every tool and workflow, your mode, and what is left of today's budget |
+| `/rednote-gate:help` | every tool and prompt, your mode, and what is left of today's budget |
 
 Or just ask in plain words ("post these two photos about my hike"). The first time you use a rednote tool, a small background service starts. It owns the browser, the approval page and the worker, and it keeps running after you close Claude Code, so the approval page always works and approved items always run. It closes the browser window after 5 idle minutes. Stop it with `rednote-gate stop` (`npm run stop` in a clone). When something is queued, the approval page opens in your browser and your Mac shows a notification. You click Approve. About 30 seconds later it runs, and the page shows a screenshot of the result. You get a notification when it is done, or if RedNote ever shows a captcha.
 
 Status: every flow was checked against the live site on 2026-10-06 on a rednote.com account, headed: four reads, and one real publish, draft, comment and reply, each approved by a human on the approval page. See [Last verified against the live site](#last-verified-against-the-live-site).
+
+## How it fits together
+
+| Part | Here |
+| --- | --- |
+| Host | Claude Code, Claude Desktop or Codex: the AI app you talk to |
+| Client | the connector inside the host, one per server. The host provides it. |
+| Server | rednote-gate, a local MCP server. The host starts it and talks to it over stdio. |
+| Tools (15) | 5 read tools run straight away. 6 write tools only queue. 4 local tools never touch RedNote. |
+| Prompts (6) | `post_photos`, `post_from_concept`, `reply_to_comments`, `research_topic`, `review_queue`, `help`. Claude Code shows them as slash commands. |
+| Resources | none |
+
+The model calls tools. You choose prompts. The background service, the approval page and the `rednote-gate` CLI are not part of MCP. The approval page is a local web page on 127.0.0.1. It sits outside MCP on purpose, so the model cannot approve its own writes.
 
 ## What it does
 
@@ -129,7 +142,7 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 - **Checked again before sending.** Image hashes are re-checked before upload. A reply only goes out if the target comment still exists and its text still matches what you approved.
 - **Halt on friction.** If RedNote shows a captcha or a "too frequent" warning, rednote-gate writes a `blocked` line to the ledger. It stops the worker and refuses read tools. Write tools can still queue, since queuing never touches the browser. It does not retry. The halt survives a restart. A human clicks Resume on the approval page to continue.
 - **No bare note URLs.** URLs without `xsec_token` are refused before the browser opens.
-- **One browser owner.** Only the service drives the browser, guarded by a lock file in `data/`. Every MCP client (Claude Code, Claude Desktop, Codex, several sessions at once) talks to that one service, so there is never a second browser on the account.
+- **One browser owner.** Only the service drives the browser, guarded by a lock file in `data/`. Every MCP host (Claude Code, Claude Desktop, Codex, several sessions at once) talks to that one service, so there is never a second browser on the account.
 - **Dry run by default.** It stays in dry run until you run `rednote-gate live` or go live on the Settings page. The mode saved in `settings.json` wins over `RN_DRY_RUN`.
 
 ## Terms of service warning
@@ -182,7 +195,7 @@ More commands:
 | `rednote-gate stop` | stops the background service |
 | `rednote-gate help` | all commands |
 
-With no command, `rednote-gate` runs the MCP server. That is what MCP clients start.
+With no command, `rednote-gate` runs the MCP server. That is what your MCP host starts.
 
 ### Where your data lives
 
@@ -190,11 +203,11 @@ Data and login live in `~/.rednote-gate`: `data/` for the queue, ledger and sett
 
 `rednote-gate login` opens a visible browser at xiaohongshu.com. Overseas accounts get sent to rednote.com: the login follows, reloads on rednote.com and asks you to scan the new QR code. It records which site your account uses in `.session/site`. Scan the QR code with the throwaway account's phone. If the page shows you logged in but the terminal does not move on, press Enter there. It then visits creator.xiaohongshu.com to pick up the creator session; scan again if that site asks. It saves the session to `.session/state.json` with owner-only permissions (0600).
 
-Quit your MCP client before running it: only one process may drive the browser.
+Quit your MCP host before running it: only one process may drive the browser.
 
 That file is a credential. It is git-ignored. rednote-gate never prints it. Never share it, commit it or copy it to a shared disk.
 
-Then add the server to your MCP client.
+Then add the server to your MCP host.
 
 ## Wiring into Claude Code, Claude Desktop and Codex
 
@@ -231,7 +244,7 @@ args = []
 
 An `env` block is optional. See [Environment variables](#environment-variables).
 
-Never load a browser MCP, such as `@playwright/mcp`, in the same client session as rednote-gate. An agent with a browser could open the approval page and click Approve.
+Never load a browser MCP server, such as `@playwright/mcp`, in the same host session as rednote-gate. An agent with a browser could open the approval page and click Approve.
 
 ## The approval page
 
@@ -352,7 +365,7 @@ Limits and the port must be whole numbers. A typo stops the server with an error
 
 The dashboard's Settings page writes `data/settings.json`, which wins over these variables for limits, mode and notifications.
 
-Set these in your MCP client's env block. The `rednote-gate` commands read them from your shell. If you set `RN_HOME`, `RN_DATA_DIR` or `RN_SESSION_PATH`, export the same values in your shell. `rednote-gate connect` copies those three into the Claude Code entry.
+Set these in your MCP host's env block. The `rednote-gate` commands read them from your shell. If you set `RN_HOME`, `RN_DATA_DIR` or `RN_SESSION_PATH`, export the same values in your shell. `rednote-gate connect` copies those three into the Claude Code entry.
 
 Dry run is not free of side effects. It opens the page, uploads images to RedNote's creator page and types the text. It only skips the final publish, save or send click.
 
@@ -368,7 +381,7 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 
 ## Known limits
 
-- **A browser agent could approve.** An agent with its own browser tool on the same machine could open the approval page and click Approve. Never load a browser MCP in the same client session. The same goes for any process running as your user: it can read `data/approval-url`. The gate stops the model acting through rednote-gate's tools. It cannot stop other software you run.
+- **A browser agent could approve.** An agent with its own browser tool on the same machine could open the approval page and click Approve. Never load a browser MCP server in the same host session. The same goes for any process running as your user: it can read `data/approval-url`. The gate stops the model acting through rednote-gate's tools. It cannot stop other software you run.
 - **The service keeps running.** It starts on first use and stays up until `rednote-gate stop` or a reboot. After updating, run `rednote-gate stop`; the next tool call starts it fresh. Settings apply without a restart. Its log is `data/service.log`.
 - **Selectors drift.** RedNote changes its pages. The selectors live in the `SEL` object in `src/rednote.ts`. Fix them there. Record the evidence in the capture block in [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md) and in [docs/friction.md](docs/friction.md).
 - **Unknown blocks a re-queue.** An `unknown` item blocks an identical write. If you check by hand and it did not post, change the text before queuing it again.
@@ -397,6 +410,7 @@ RedNote's pages contain hidden decoy buttons that a person cannot see or click. 
 | Get note | `rednote_get_note` | verified headed 2026-10-06 (rednote.com); headless not yet |
 | My notes | `rednote_my_notes` | verified headed 2026-10-06 (rednote.com) |
 | Topics and emoji in a post | `rednote_create_post` with `topics` | live verified 2026-10-06 (rednote.com): 4 linked topics in the note's tag list, 4 emoji kept |
+| AI label | `rednote_create_post` with `aiGenerated: true` | dry run verified 2026-10-07 (rednote.com): 内容类型声明 set to 笔记含AI合成内容, shown in the preview; not posted live yet |
 | Video note | `rednote_create_video_post` | dry run verified 2026-10-06 (rednote.com): uploaded, processed, topic linked, 发布 found; no real video yet |
 | Text cards and `post_from_concept` | `rednote_make_cards` | live verified 2026-10-06 (rednote.com): researched a concept, rendered 4 cards, published them as a note |
 | Like | `rednote_like_note` | live verified 2026-10-06 (rednote.com): liked state confirmed after the click, count 151 to 152 |
