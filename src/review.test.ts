@@ -40,7 +40,7 @@ async function approvalPage(dryRun: boolean, limits = LIMITS) {
       req.on("error", reject);
       req.end(body);
     });
-  const decide = (id: string, action: string) => call("POST", "/decide", new URLSearchParams({ t: TOKEN, id, action }).toString());
+  const decide = (id: string, action: string) => call("POST", "/decide", new URLSearchParams({ t: TOKEN, id, mode: dryRun ? "dry_run" : "live", action }).toString());
   return { ...o, call, decide, close: () => server.close() };
 }
 
