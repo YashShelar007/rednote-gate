@@ -29,7 +29,7 @@ a:hover{text-decoration-thickness:2px}
 :focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:2px}
 img{max-width:100%;height:auto;display:block}
 code,pre{font-family:var(--mono);font-size:.875em}
-.wrap{max-width:70rem;margin:0 auto;padding:0 max(1rem,env(safe-area-inset-left)) 0 max(1rem,env(safe-area-inset-right))}
+.wrap{width:min(68rem,calc(100% - 2rem));margin-inline:auto}
 .skip{position:absolute;left:-999px;top:.5rem;background:var(--surface);padding:.5rem 1rem}
 .skip:focus{left:1rem}
 
@@ -38,6 +38,9 @@ code,pre{font-family:var(--mono);font-size:.875em}
 .brand{font-weight:700;color:var(--ink);text-decoration:none;display:flex;align-items:center;gap:.5rem}
 .brand svg{flex:none}
 .top nav{display:flex;gap:1.25rem;flex-wrap:wrap}
+
+/* single column by default; minmax(0,1fr) lets long code lines scroll instead of widening the page */
+.hero,.rail,.cols,.split{grid-template-columns:minmax(0,1fr)}
 
 /* hero */
 .hero{display:grid;gap:2.5rem;padding-block:2.5rem 4rem;align-items:start}
@@ -111,7 +114,7 @@ footer p{max-width:44rem}
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="wrap top">
-  <a class="brand" href="./" translate="no"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6" fill="var(--go)"/><path d="M8 7v18M24 7v18M8 12h16M8 20h16" stroke="var(--on-go)" stroke-width="3" stroke-linecap="round"/></svg>rednote-gate</a>
+  <a class="brand" href="./" translate="no"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6" style="fill:var(--go)"/><path d="M8 7v18M24 7v18M8 12h16M8 20h16" style="stroke:var(--on-go)" stroke-width="3" stroke-linecap="round"/></svg>rednote-gate</a>
   <nav aria-label="Site">
     <a href="#how">How it works</a>
     <a href="#limits">Limits</a>
@@ -124,8 +127,8 @@ footer p{max-width:44rem}
   <div>
     <h1>Nothing posts until you click Approve.</h1>
     <p class="lede">rednote-gate lets Claude Code, Claude Desktop or Codex help run one RedNote (Xiaohongshu) account. Claude researches, drafts notes and replies, and queues them. Each post, comment, reply and like waits on a page on your own computer until you approve it.</p>
-    <p class="warn">For one throwaway account only. It drives the RedNote website with a browser, which is against RedNote's terms, and the account can be banned.</p>
-    <pre tabindex="0" aria-label="Install commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
+    <p class="warn">For one throwaway account only. It drives the RedNote website with a browser, which is against RedNote’s terms, and the account can be banned.</p>
+    <pre role="region" tabindex="0" aria-label="Install commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
 <span class="p">$ </span>cd rednote-gate
 <span class="p">$ </span>npm run setup</code></pre>
     <div class="cta">
@@ -138,13 +141,13 @@ footer p{max-width:44rem}
       <source srcset="assets/approval-dark.png" media="(prefers-color-scheme: dark)">
       <img class="shot" src="assets/approval-light.png" width="760" height="900" alt="The approval page in dry run mode. Meters show 1 of 5 writes and 2 of 10 likes used in the last 24 hours. A photo note titled Sunrise hike above the clouds is waiting for a decision, with its body, three topics and two images, and buttons to approve a dry run or reject it." fetchpriority="high">
     </picture>
-    <figcaption>The approval page, rendered from rednote-gate's own code with made-up data.</figcaption>
+    <figcaption>The approval page, rendered from rednote-gate’s own code with made-up data.</figcaption>
   </figure>
 </div>
 
 <section id="how" class="wrap" aria-labelledby="h-how">
   <h2 id="h-how">How it works</h2>
-  <p class="intro">Every write moves through the same three states. Only your click moves it from the first to the second.</p>
+  <p class="intro">This is the path a write takes. Only your click moves it past pending.</p>
   <ol class="rail">
     <li class="pending">
       <span class="s">pending</span>
@@ -174,7 +177,7 @@ footer p{max-width:44rem}
       <ul>
         <li>Search notes by keyword</li>
         <li>Read a note: title, body, tags, likes and more</li>
-        <li>Read a note's comments (first page)</li>
+        <li>Read a note’s comments (first page)</li>
         <li>List your own notes, newest first</li>
         <li>Make text-card images on your computer for notes without photos</li>
       </ul>
@@ -207,7 +210,7 @@ footer p{max-width:44rem}
 
 <section id="safety" class="wrap" aria-labelledby="h-safety">
   <h2 id="h-safety">Safety and guardrails</h2>
-  <p class="intro">Of nine RedNote automation projects read on 2026-10-06, none enforced a per-item human approval in code. Four asked the AI to check with you, which an AI can skip. These rules live in code.</p>
+  <p class="intro">Of 9 RedNote automation projects read on 2026-10-06, none enforced a per-item human approval in code; 4 asked the AI to check with you, which an AI can skip. These rules live in code.</p>
   <div class="split">
     <div class="guards">
       <div><h3>Approval in code, not in chat</h3><p>Write tools can only queue. The worker acts only on items a human approved on the local page.</p></div>
@@ -222,7 +225,7 @@ footer p{max-width:44rem}
         <source srcset="assets/settings-dark.png" media="(prefers-color-scheme: dark)">
         <img class="shot" src="assets/settings-light.png" width="760" height="965" alt="The settings page: dry run or live mode with a confirmation tick, writes per day 5, likes per day 10, minutes between comments 10, and notification options." loading="lazy">
       </picture>
-      <figcaption>The settings page, also from the repo's own code with made-up data.</figcaption>
+      <figcaption>The settings page, also from the repo’s own code with made-up data.</figcaption>
     </figure>
   </div>
 </section>
@@ -231,9 +234,9 @@ footer p{max-width:44rem}
   <h2 id="h-limits">Honest limits</h2>
   <p class="intro">Read these before you set it up.</p>
   <ul class="limits">
-    <li><b>It is against RedNote's terms.</b> It drives the website with a real browser and a real logged-in session. The README lists the anti-bot measures it uses.</li>
+    <li><b>It is against RedNote’s terms.</b> It drives the website with a real browser and a real logged-in session. The README lists the anti-bot measures it uses.</li>
     <li><b>Use one throwaway account.</b> The account can be rate limited, restricted or banned. Never use a primary or brand account.</li>
-    <li><b>Drafts stay in the browser.</b> RedNote's website keeps drafts in the browser, so a draft saved here does not show up in your phone app.</li>
+    <li><b>Drafts stay in the browser.</b> RedNote’s website keeps drafts in the browser, so a draft saved here does not show up in your phone app.</li>
     <li><b>Keep browser tools out of the same session.</b> An AI with its own browser tool could open the approval page and click Approve.</li>
     <li><b>Pages change.</b> When RedNote changes its site, a flow can break until someone updates it.</li>
   </ul>
@@ -244,12 +247,12 @@ footer p{max-width:44rem}
   <p class="intro">You need Node 20 or newer, a RedNote account made for this, and the phone that account is logged in on.</p>
   <ol>
     <li>Clone the repo and run setup. It installs Chromium, builds, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code.
-<pre tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
+<pre role="region" tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
 <span class="p">$ </span>cd rednote-gate
 <span class="p">$ </span>npm run setup</code></pre></li>
     <li>Ask Claude for something, such as &ldquo;post these two photos about my hike&rdquo;. Approve it on the page that opens. It runs as a dry run.</li>
     <li>When a dry run looks right, switch to live and open a new Claude Code session.
-<pre tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>npm run live</code></pre></li>
+<pre role="region" tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>npm run live</code></pre></li>
   </ol>
   <p>For Claude Desktop or Codex, see <a href="https://github.com/YashShelar007/rednote-gate#wiring-into-claude-code-claude-desktop-and-codex">the README</a>.</p>
 </section>
