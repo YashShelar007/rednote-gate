@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { startApproval } from "./approval.js";
 import { connectArgs, launchCommand, parseCli } from "./cli.js";
 
-test("no arguments runs the MCP server, which is how MCP clients start it", () => {
+test("no arguments runs the MCP server, which is how MCP hosts start it", () => {
   assert.deepEqual(parseCli([]), { command: "serve", yes: false });
 });
 

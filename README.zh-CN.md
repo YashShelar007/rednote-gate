@@ -38,7 +38,7 @@ Claude Desktop 和 Codex 的配置方法见[英文 README](README.md#wiring-into
 ## 批准流程
 
 1. 你让 Claude 做事，比如“用这两张照片发一篇爬山的笔记”。
-2. Claude 调用写入工具。内容只进入队列，不会打开小红书。
+2. Claude 调用写入工具（tools）。内容只进入队列，不会打开小红书。
 3. 本机的批准页面（`127.0.0.1`）自动打开，显示要发的标题、正文和图片。你点 Approve 或 Reject。
 4. 点 Approve 后还有 30 秒可以取消。之后由你电脑上的浏览器执行，页面会显示结果截图。
 
@@ -46,9 +46,22 @@ Claude Desktop 和 Codex 的配置方法见[英文 README](README.md#wiring-into
 
 在聊天里对 Claude 说“可以，发吧”没有用。只有你在页面上点 Approve 才算数。
 
-不要在同一个会话里加载浏览器类 MCP，比如 `@playwright/mcp`。带浏览器的 AI 可以自己打开批准页面，替你点 Approve。
+不要在同一个会话里加载浏览器类 MCP 服务器，比如 `@playwright/mcp`。带浏览器的 AI 可以自己打开批准页面，替你点 Approve。
 
 默认每天最多 5 次写入、10 次点赞，两条评论之间至少隔 10 分钟。这些限制写在代码里。遇到验证码或“操作频繁”提示，它会全部停下，等你在页面上点 Resume 才继续。它不会破解验证码，也不会重试。
+
+## 各部分怎么配合
+
+| 部分 | 在这里 |
+| --- | --- |
+| 主机（host） | Claude Code、Claude Desktop 或 Codex，也就是你对话的 AI 应用 |
+| 客户端（client） | 主机里的连接器，每个服务器一个，由主机提供 |
+| 服务器（server） | rednote-gate，一个本地 MCP 服务器。主机启动它，通过 stdio 通信。 |
+| 工具（tools），15 个 | 5 个读取工具直接运行。6 个写入工具只进队列。4 个本地工具不碰小红书。 |
+| 提示词（prompts），6 个 | `post_photos`、`post_from_concept`、`reply_to_comments`、`research_topic`、`review_queue`、`help`。Claude Code 把它们显示为斜杠命令。 |
+| 资源（resources） | 没有 |
+
+工具由模型调用，提示词由你选择。后台服务、批准页面和 `rednote-gate` 命令行都不属于 MCP。批准页面是本机 127.0.0.1 上的网页。它故意放在 MCP 之外，这样模型没法批准自己的写操作。
 
 ## 更多内容
 

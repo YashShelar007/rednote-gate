@@ -74,9 +74,9 @@ describe("rednote-gate over MCP, with the real background service", { timeout: 1
     assert.deepEqual(tools.map((t) => t.name).sort(), CATALOGUE.tools.map((t) => t.name).sort());
   });
 
-  test("lists exactly the workflows in the help catalogue as prompts", async () => {
+  test("lists exactly the prompts in the help catalogue", async () => {
     const { prompts } = await client.listPrompts(undefined, CALL);
-    assert.deepEqual(prompts.map((p) => p.name).sort(), CATALOGUE.workflows.map((w) => w.name).sort());
+    assert.deepEqual(prompts.map((p) => p.name).sort(), CATALOGUE.prompts.map((p) => p.name).sort());
   });
 
   test("rednote_help names the mode and every tool", async () => {

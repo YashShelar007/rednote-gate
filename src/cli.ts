@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The `rednote-gate` command. No arguments runs the MCP server, which is what MCP clients start.
+// The `rednote-gate` command. No arguments runs the MCP server, which is what the MCP host starts.
 // Subcommands set it up and look after it. None of them contacts RedNote except `login` and `setup`.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
@@ -58,7 +58,7 @@ const HELP = `rednote-gate ${VERSION}: an MCP server for one throwaway RedNote a
 
 Usage: rednote-gate [command]
 
-  (none)       run the MCP server on stdio (this is what MCP clients start)
+  (none)       run the MCP server on stdio (this is what your MCP host starts)
   setup        install Chromium, log in, then connect
   login        QR login for the throwaway account
   connect      add rednote-gate to Claude Code; print config for Claude Desktop and Codex
@@ -72,7 +72,7 @@ Usage: rednote-gate [command]
 
 Data and login: ${HOME} (set RN_HOME to move them).`;
 
-/** Values a client must also see, made absolute because MCP clients start us in another folder. */
+/** Values the server must also see, made absolute because the MCP host starts us in another folder. */
 function passEnv(): Record<string, string> {
   const set = { RN_HOME: HOME, RN_DATA_DIR: DATA_DIR, RN_SESSION_PATH: SESSION_PATH };
   return Object.fromEntries(Object.entries(set).filter(([k]) => process.env[k]).map(([k, v]) => [k, resolve(v)]));
@@ -83,7 +83,7 @@ function connect(): boolean {
   const env = passEnv();
   const got = spawnSync("claude", ["mcp", "get", "rednote-gate"], { stdio: "ignore" });
   let ok = true;
-  if (got.error) console.log("Claude Code CLI not found. Add rednote-gate to your client by hand:");
+  if (got.error) console.log("Claude Code CLI not found. Add rednote-gate to your MCP host by hand:");
   else if (got.status === 0) console.log('rednote-gate is already connected to Claude Code. To re-add it, run "claude mcp remove rednote-gate -s user" first.');
   else if ((ok = run("claude", connectArgs(launch, env)))) console.log("Connected to Claude Code for all your projects. Open a new Claude Code session.");
   const desktop = { mcpServers: { "rednote-gate": { command: launch[0], args: launch.slice(1), ...(Object.keys(env).length && { env }) } } };
@@ -111,7 +111,7 @@ async function findService(): Promise<Service | "other" | null> {
   }
 }
 // ponytail: catches a mismatch only while the other service runs; a stopped one reads its own settings on start.
-const OTHER = `A rednote-gate service with a different data folder is running on port ${PORT}. This command uses ${DATA}, so it cannot see or change that service. Run it with the same RN_HOME as your MCP client, or use Settings on the approval page.`;
+const OTHER = `A rednote-gate service with a different data folder is running on port ${PORT}. This command uses ${DATA}, so it cannot see or change that service. Run it with the same RN_HOME as your MCP host, or use Settings on the approval page.`;
 
 /** The lock holds the pid of whoever drives the browser: the service, or a login. */
 function lockPid(): number | null {

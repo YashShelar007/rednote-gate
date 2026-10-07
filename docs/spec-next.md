@@ -9,7 +9,7 @@ Every write below goes through the same queue, approval page, budget, captcha ha
 | `topics` | Real RedNote topics (#话题) and emoji in post bodies | publish flow |
 | `likes` | Like a note, after approval | note page, budget |
 | `cards` | Render text-card images locally (no RedNote, no AI), for notes without photos | none |
-| `concept` | Workflow: concept to research to note to cards to queue | `cards`, `topics` |
+| `concept` | Prompt: concept to research to note to cards to queue | `cards`, `topics` |
 | `video` | Publish a video note, after approval | publish flow |
 
 Build order: `topics`, `likes` (small, risk-first) in parallel with `cards` (separate agent, separate file), then `concept`, then `video`.
@@ -29,7 +29,7 @@ Status 2026-10-06: topics, likes, cards and concept met live; video met as a dry
 - `topics`: a dry run with 2 topics and an emoji passes the read-back; one live post shows linked topics.
 - `likes`: a dry run finds the like button; one live like on a note, verified by the liked state.
 - `cards`: unit tests for escaping and sizing; a rendered card looks right by eye in light text on a solid background.
-- `concept`: the workflow queues a post whose images are generated cards.
+- `concept`: the prompt queues a post whose images are generated cards.
 - `video`: a dry run with a generated test video reaches the 发布 button; one live video post later, approved by the owner.
 
 ## Boundaries

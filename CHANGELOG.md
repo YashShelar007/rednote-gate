@@ -3,8 +3,11 @@
 ## [1.1.1] - 2026-10-08
 
 ### Added
-- RedNote's own AI label. RedNote's rules of 2026-04-27 ask creators to label AI-written or AI-polished notes. `rednote_create_post`, `rednote_create_draft` and `rednote_create_video_post` require `aiGenerated`, so a model cannot leave it out by accident; the `post_photos` and `post_from_concept` workflows set it, because Claude writes the text there. Publishing then ticks 内容类型声明, 笔记含AI合成内容, and stops before the final click if the label does not stick. The approval page shows "AI label: Yes" or "No" for every post, and the label is part of what you approve. Not yet checked on the live site; the first dry run with the label checks it.
+- RedNote's own AI label. RedNote's rules of 2026-04-27 ask creators to label AI-written or AI-polished notes. `rednote_create_post`, `rednote_create_draft` and `rednote_create_video_post` require `aiGenerated`, so a model cannot leave it out by accident; the `post_photos` and `post_from_concept` prompts set it, because Claude writes the text there. Publishing then ticks 内容类型声明, 笔记含AI合成内容, and stops before the final click if the label does not stick. The approval page shows "AI label: Yes" or "No" for every post, and the label is part of what you approve. Checked in a dry run on rednote.com on 2026-10-07: the label is set and shows in the preview. Not yet posted live.
 - Listed in the official MCP Registry as `io.github.YashShelar007/rednote-gate` (`server.json`, and `mcpName` in package.json).
+
+### Changed
+- Docs, help and CLI text now use MCP's standard terms: tools, prompts, host and server. `CATALOGUE.workflows` is now `CATALOGUE.prompts`.
 
 ### Fixed
 - The stop banner read "RedNote showed: RedNote showed ...". It now says it once.
