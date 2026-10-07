@@ -10,6 +10,8 @@ Website: https://yashshelar007.github.io/rednote-gate/
 
 It is a local MCP server for Claude Code, Claude Desktop and Codex. Reads run directly. Every write waits in a queue until a human clicks Approve on a local web page.
 
+<a href="https://yashshelar007.github.io/rednote-gate/#demo"><img src="site/assets/demo-poster.jpg" width="640" alt="Opens a 24-second demo video on the rednote-gate website. The still shows an approved photo note on the approval page, with a Cancel before it runs button, next to the words: Claude drafts. You get the last click."></a>
+
 ## Quick start
 
 ### Install from npm
