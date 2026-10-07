@@ -3,7 +3,7 @@
 // approves an item or calls a tool that opens a browser, so RedNote is never contacted.
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,5 +113,27 @@ describe("rednote-gate over MCP, with the real background service", { timeout: 1
     assert.ok(html.includes(queuedId), "the page lists the queued item");
     assert.ok(html.includes("Great tips &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; thanks"), "the exact text, escaped");
     assert.doesNotMatch(html, /<script>alert/);
+  });
+
+  // Everything else in each call is valid, so the named field is the only reason for the refusal.
+  const png = join(ROOT, "a.png");
+  writeFileSync(png, Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"));
+  const refused: Array<[name: string, tool: string, args: Record<string, unknown>, why: RegExp]> = [
+    ["a bare note url without xsec_token", "rednote_post_comment", { url: NOTE.split("?")[0], text: "hi" }, /Use a note url returned by rednote_search/],
+    ["a title longer than RedNote's 20", "rednote_create_post", { title: "a".repeat(41), body: "fine", images: [png] }, /longer than RedNote's 20/],
+    ["a # in a post body", "rednote_create_post", { title: "ok", body: "see #topic", images: [png] }, /Put hashtags in topics/],
+    ["a relative image path", "rednote_create_post", { title: "ok", body: "fine", images: ["pics/a.png"] }, /Image path must be absolute/],
+  ];
+  for (const [name, tool, args, why] of refused) {
+    test(`refuses ${name}`, async () => {
+      const r = await call(tool, args);
+      assert.equal(r.isError, true, r.text);
+      assert.match(r.text, why);
+    });
+  }
+
+  test("rednote_queue_status lists the comment as pending, and nothing refused was queued", async () => {
+    const items = JSON.parse((await call("rednote_queue_status")).text) as Array<{ id: string; tool: string; status: string }>;
+    assert.deepEqual(items.map(({ id, tool, status }) => ({ id, tool, status })), [{ id: queuedId, tool: "post_comment", status: "pending" }]);
   });
 });
