@@ -1,10 +1,16 @@
 # rednote-gate
 
+[![npm version](https://img.shields.io/npm/v/rednote-gate)](https://www.npmjs.com/package/rednote-gate) [![License: MIT](https://img.shields.io/github/license/YashShelar007/rednote-gate)](LICENSE) [![CI](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml) [中文说明](README.zh-CN.md)
+
 rednote-gate drives ONE dedicated throwaway RedNote (Xiaohongshu) account. Never point it at a primary or brand account. It works by browser automation, which is against RedNote's terms of service. The account can be rate limited or banned. Only use an account you can afford to lose.
+
+<img src="site/assets/approval-light.png" width="380" alt="The approval page in dry run mode. Meters show 1 of 5 writes and 2 of 10 likes used in the last 24 hours. Below them, a photo note titled Sunrise hike above the clouds waits for a decision, with its body, three topics, two images, and the buttons Approve dry run and Reject.">
 
 Website: https://yashshelar007.github.io/rednote-gate/
 
 It is a local MCP server for Claude Code, Claude Desktop and Codex. Reads run directly. Every write waits in a queue until a human clicks Approve on a local web page.
+
+<a href="https://yashshelar007.github.io/rednote-gate/#demo"><img src="site/assets/demo-poster.jpg" width="640" alt="Opens a 24-second demo video on the rednote-gate website. The still shows an approved photo note on the approval page, with a Cancel before it runs button, next to the words: Claude drafts. You get the last click."></a>
 
 ## Quick start
 
@@ -85,7 +91,7 @@ A short example:
 2. Claude calls `rednote_create_post`. The server checks the image, copies it into the queue and hashes it. It returns a queue id such as `q_20261006T153012_ab12`. No browser opens. Nothing is posted.
 3. You run `rednote-gate approve` and open the link it prints. The page shows the exact title, body and image. You click Approve.
 4. The worker checks the queue every 10 seconds. It waits 30 seconds after your click, so you can still press Cancel, then picks up the item if the budget allows. It writes an `attempt` line to the ledger, then opens the creator page, uploads the image and types the text.
-5. In dry run mode (the default) it stops before the final click. The item becomes `dry_run`. In live mode (`RN_DRY_RUN=0`) it clicks publish. The item becomes `posted`.
+5. In dry run mode (the default) it stops before the final click. The item becomes `dry_run`. In live mode (`rednote-gate live`) it clicks publish. The item becomes `posted`.
 6. Claude can call `rednote_queue_status` to see the result. It never gets the approval link.
 
 Clicking Approve only marks the item. It does not post anything by itself. There is no approval in chat. Telling Claude "yes, post it" changes nothing.
@@ -113,7 +119,7 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 
 ## Guardrails
 
-- **Approval in code.** Write tools only queue. The worker clicks the final button only when `RN_DRY_RUN=0` and the item is approved.
+- **Approval in code.** Write tools only queue. The worker clicks the final button only in live mode, and only on an approved item.
 - **What you approve is what posts.** Images are copied into the queue and hashed when queued. Only real JPEG, PNG or WebP files pass, checked by file signature. Each image can be at most 20 MB. A note takes 1 to 9 images. That is a project limit, not RedNote's.
 - **Daily budget.** At most `RN_DAILY_WRITES` live attempts (default 5) in any rolling 24 hours. Comments and replies also need `RN_COMMENT_GAP_MIN` minutes (default 10) since the last live comment or reply attempt. The budget is worked out from the ledger, so a restart does not reset it. Failed and unknown live attempts count. Dry runs do not. An approved item over budget waits. The approval page shows when the next slot opens.
 - **Undo window.** The worker waits 30 seconds after Approve. Until then, Cancel stops it.
@@ -124,11 +130,15 @@ Queuing an identical write returns the existing id instead of a second item. Ide
 - **Halt on friction.** If RedNote shows a captcha or a "too frequent" warning, rednote-gate writes a `blocked` line to the ledger. It stops the worker and refuses read tools. Write tools can still queue, since queuing never touches the browser. It does not retry. The halt survives a restart. A human clicks Resume on the approval page to continue.
 - **No bare note URLs.** URLs without `xsec_token` are refused before the browser opens.
 - **One browser owner.** Only the service drives the browser, guarded by a lock file in `data/`. Every MCP client (Claude Code, Claude Desktop, Codex, several sessions at once) talks to that one service, so there is never a second browser on the account.
-- **Dry run by default.** `RN_DRY_RUN` is `1` unless you set it to `0`.
+- **Dry run by default.** It stays in dry run until you run `rednote-gate live` or go live on the Settings page. The mode saved in `settings.json` wins over `RN_DRY_RUN`.
 
 ## Terms of service warning
 
 This project drives the RedNote website with a real browser and a real logged-in session. RedNote's terms do not allow this. Using it can get the account rate limited, restricted or banned. That risk is yours.
+
+Two Xiaohongshu notices from 2026 also apply (checked 2026-10-07). On 2026-03-10 it announced action against "AI 托管" (AI hosting) accounts ([IT之家 report](https://www.ithome.com/0/927/689.htm)). An account that now and then lets AI hosting write, post or interact for it gets warnings and reduced distribution. An account that registers, posts or interacts directly through AI hosting tools is banned, and so is one whose public notes were all posted that way. On 2026-04-27 it published rules for AI content ([IT之家 report](https://www.ithome.com/0/944/156.htm)). Creators should label notes that AI generated or polished when they publish them, and the platform adds its own label to AI content left unlabeled. Using AI to run an account against the rules is punished in steps, up to a ban.
+
+An Approve click does not make an account compliant. A throwaway account that only posts through rednote-gate matches the ban description in the March notice.
 
 - Use ONE dedicated throwaway account. Never a primary account. Never a brand account.
 - Keep writes few and far apart. The budget is a ceiling, not a target.
@@ -365,7 +375,6 @@ Dry run is not free of side effects. It opens the page, uploads images to RedNot
 - **Drafts stay in rednote-gate's browser.** RedNote's web creator site keeps drafts in the browser, not in your account (its own notice says so). A draft saved by rednote-gate does not appear in your phone app. rednote-gate keeps it across restarts by saving the browser's IndexedDB with the session; to finish it, open the creator site's 草稿箱 in rednote-gate's browser.
 - **Comments are first page only.**
 - **Headed by default.** A Chromium window opens when a browser tool runs and stays open as one tab. Set `RN_HEADLESS=1` once you trust it.
-- **Writes are not verified live yet.** See the table below.
 
 ## Anti-bot measures (disclosed on purpose)
 

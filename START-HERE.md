@@ -56,19 +56,19 @@ rednote-gate is a local MCP server for ONE throwaway RedNote account. Reads run 
 
 The agent calls a read tool. It is refused if rednote-gate is halted, if another process holds the browser lock, or if a note URL has no `xsec_token`. Otherwise the browser opens the page and the tool returns the data. A captcha during a read halts rednote-gate the same way as during a write.
 
-## What is verified (as of 2026-10-06)
+## What is verified (as of 2026-10-07)
 
-- **Live site:** nothing. Every flow is "not yet verified" in the README table.
-- **Offline:** `npm test` covers the queue, ledger, worker and approval page without RedNote.
+- **Live site:** every flow in the README's "Last verified" table was checked headed on 2026-10-06, on a rednote.com account. Headless runs and a real video note are not verified yet. The table has the details.
+- **Offline:** `npm test` covers the queue, ledger, worker, settings, CLI and approval page without RedNote. It also runs an end-to-end test where a real MCP client starts the server and the service.
 - **Observed, logged out, through Firecrawl:** a bare note URL leads to a captcha, and the same note with `xsec_token` is readable. See [docs/friction.md](docs/friction.md).
 - **Research:** [docs/landscape.md](docs/landscape.md).
 
-The selectors in `SEL` came from reading other projects. None has been checked against the live site.
+The selectors in `SEL` started from other projects. They were checked against the live site on 2026-10-06.
 
 ## What to do next
 
 1. Make sure `npm run build` and `npm test` pass.
-2. Do the read ladder in [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md), headed, on the throwaway account.
-3. Do the write ladder: publish, draft, comment, reply. Dry run first each time. One live write per evening at most, days apart.
+2. When RedNote changes a page, re-run that flow with [PROTOTYPE-RUNSHEET.md](PROTOTYPE-RUNSHEET.md), headed, on the throwaway account. Reads first.
+3. For writes, dry run first each time. One live write per evening at most, days apart.
 4. After each flow: fill its capture block, fix `SEL` if needed, add any friction to [docs/friction.md](docs/friction.md), and update the "Last verified" table in the README with the date and result.
 5. Later, not decided yet: a selector repair step that proposes a `SEL` fix with evidence for human review. See the Stagehand section in [docs/landscape.md](docs/landscape.md). Decide only after every flow has been verified.

@@ -8,6 +8,15 @@
 <meta name="theme-color" content="#15181c" media="(prefers-color-scheme: dark)">
 <title>rednote-gate: AI help for RedNote, with a human Approve click</title>
 <meta name="description" content="An open-source MCP server for Claude Code, Claude Desktop and Codex. It helps run one throwaway RedNote account, and nothing is posted, sent or liked until you click Approve on a page on your own computer.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://yashshelar007.github.io/rednote-gate/">
+<meta property="og:title" content="rednote-gate: nothing posts until you click Approve">
+<meta property="og:description" content="An open-source MCP server for Claude Code, Claude Desktop and Codex. Claude drafts RedNote notes, comments and likes for one throwaway account, and nothing goes out until you click Approve on your own computer.">
+<meta property="og:image" content="https://yashshelar007.github.io/rednote-gate/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="rednote-gate. Nothing posts until you click Approve. Beside the title, the approval page shows a photo note waiting with the buttons Approve dry run and Reject.">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2317703a'/%3E%3Cpath d='M8 7v18M24 7v18M8 12h16M8 20h16' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root{
@@ -27,7 +36,7 @@ body{margin:0;background:var(--page);color:var(--ink);font:1.0625rem/1.6 var(--s
 a{color:var(--link);text-underline-offset:.15em}
 a:hover{text-decoration-thickness:2px}
 :focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:2px}
-img{max-width:100%;height:auto;display:block}
+img,video{max-width:100%;height:auto;display:block}
 code,pre{font-family:var(--mono);font-size:.875em}
 .wrap{width:min(68rem,calc(100% - 2rem));margin-inline:auto}
 .skip{position:absolute;left:-999px;top:.5rem;background:var(--surface);padding:.5rem 1rem}
@@ -55,6 +64,10 @@ pre .p{color:var(--muted);user-select:none}
 figure{margin:0}
 .shot{border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
 figcaption{color:var(--muted);font-size:.875rem;margin-top:.625rem;max-width:36rem}
+
+/* demo video */
+.demo figure{max-width:60rem}
+.demo video{width:100%;aspect-ratio:16/9;background:var(--surface)}
 
 /* sections */
 section{padding-block:3.5rem;border-top:1px solid var(--line)}
@@ -116,6 +129,7 @@ footer p{max-width:44rem}
 <header class="wrap top">
   <a class="brand" href="./" translate="no"><svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6" style="fill:var(--go)"/><path d="M8 7v18M24 7v18M8 12h16M8 20h16" style="stroke:var(--on-go)" stroke-width="3" stroke-linecap="round"/></svg>rednote-gate</a>
   <nav aria-label="Site">
+    <a href="#demo">Demo</a>
     <a href="#how">How it works</a>
     <a href="#limits">Limits</a>
     <a class="gh" href="https://github.com/YashShelar007/rednote-gate">GitHub</a>
@@ -128,9 +142,8 @@ footer p{max-width:44rem}
     <h1>Nothing posts until you click Approve.</h1>
     <p class="lede">rednote-gate lets Claude Code, Claude Desktop or Codex help run one RedNote (Xiaohongshu) account. Claude researches, drafts notes and replies, and queues them. Each post, comment, reply and like waits on a page on your own computer until you approve it.</p>
     <p class="warn">For one throwaway account only. It drives the RedNote website with a browser, which is against RedNote’s terms, and the account can be banned.</p>
-    <pre role="region" tabindex="0" aria-label="Install commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
-<span class="p">$ </span>cd rednote-gate
-<span class="p">$ </span>npm run setup</code></pre>
+    <pre role="region" tabindex="0" aria-label="Install commands"><code><span class="p">$ </span>npm install -g rednote-gate
+<span class="p">$ </span>rednote-gate setup</code></pre>
     <div class="cta">
       <a class="button" href="https://github.com/YashShelar007/rednote-gate">View on GitHub</a>
       <a href="https://github.com/YashShelar007/rednote-gate#readme">Read the README</a>
@@ -144,6 +157,18 @@ footer p{max-width:44rem}
     <figcaption>The approval page, rendered from rednote-gate’s own code with made-up data.</figcaption>
   </figure>
 </div>
+
+<section id="demo" class="wrap demo" aria-labelledby="h-demo">
+  <h2 id="h-demo">See it in 24 seconds</h2>
+  <p class="intro" id="demo-desc">Claude queues a photo note. The approval page shows it next to a waiting like and comment, and nothing runs until the Approve click. Then come the settings and the install command. The data is made up. The video has music and no speech.</p>
+  <figure>
+    <video class="shot" controls muted playsinline preload="none" poster="assets/demo-poster.jpg" width="1920" height="1080" aria-describedby="demo-desc">
+      <source src="assets/demo.mp4" type="video/mp4">
+      <a href="assets/demo.mp4">Download the demo video (MP4, 4.1&nbsp;MB)</a>
+    </video>
+    <figcaption><a href="https://ende.app/en/standard-license">Music by Sascha Ende (ende.app), CC BY 4.0</a></figcaption>
+  </figure>
+</section>
 
 <section id="how" class="wrap" aria-labelledby="h-how">
   <h2 id="h-how">How it works</h2>
@@ -246,15 +271,14 @@ footer p{max-width:44rem}
   <h2 id="h-install">Install</h2>
   <p class="intro">You need Node 20 or newer, a RedNote account made for this, and the phone that account is logged in on.</p>
   <ol>
-    <li>Clone the repo and run setup. It installs Chromium, builds, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code.
-<pre role="region" tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
-<span class="p">$ </span>cd rednote-gate
-<span class="p">$ </span>npm run setup</code></pre></li>
+    <li>Install from npm and run setup. It installs Chromium, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code. Your data and login live in <code translate="no">~/.rednote-gate</code>.
+<pre role="region" tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>npm install -g rednote-gate
+<span class="p">$ </span>rednote-gate setup</code></pre></li>
     <li>Ask Claude for something, such as &ldquo;post these two photos about my hike&rdquo;. Approve it on the page that opens. It runs as a dry run.</li>
-    <li>When a dry run looks right, switch to live and open a new Claude Code session.
-<pre role="region" tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>npm run live</code></pre></li>
+    <li>When a dry run looks right, switch to live. It asks you to confirm. <code translate="no">rednote-gate dry</code> switches back.
+<pre role="region" tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>rednote-gate live</code></pre></li>
   </ol>
-  <p>For Claude Desktop or Codex, see <a href="https://github.com/YashShelar007/rednote-gate#wiring-into-claude-code-claude-desktop-and-codex">the README</a>.</p>
+  <p>For Claude Desktop or Codex, see <a href="https://github.com/YashShelar007/rednote-gate#wiring-into-claude-code-claude-desktop-and-codex">the README</a>. It also covers installing from a clone.</p>
 </section>
 </main>
 

@@ -40,7 +40,7 @@ Stopping on a captcha is a guardrail here, not a selling point. DeliciousBuding 
 - Support more than one account, one browser context, or concurrent writes.
 - Bulk post, or schedule posts nobody is watching.
 - Solve captchas, or retry after a captcha or a "too frequent" warning.
-- Like, favorite, follow or message. Writes are post, draft, comment and reply only.
+- Favorite, follow or message. Writes are post, draft, comment, reply and like. Likes were added on 2026-10-06, after this research: `rednote_like_note` goes through the same approval page and has its own daily cap, 10 by default.
 - Run the account in a cloud browser. See the Firecrawl result below.
 - Touch a primary or brand account.
 

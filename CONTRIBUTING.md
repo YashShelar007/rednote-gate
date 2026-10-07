@@ -20,7 +20,7 @@ Tests use Node's built-in runner. They do not need a browser or a network.
 RedNote changes its pages. When a flow breaks, it is almost always a selector.
 
 1. Find the selector in the `SEL` object in `src/rednote.ts`. All selectors live there. Change it there only.
-2. Run the flow headed with a dry run. Leave `RN_HEADLESS` unset so the window shows. Leave `RN_DRY_RUN` unset so the final button is not clicked. Watch it work.
+2. Run the flow headed with a dry run. Leave `RN_HEADLESS` unset so the window shows. Run `npm run dry` first so the final button is not clicked. The mode saved in `settings.json` wins over `RN_DRY_RUN`. Watch it work.
 3. Fill the capture block in `PROTOTYPE-RUNSHEET.md` for that flow.
 4. If you hit a captcha, a "too frequent" warning or any other friction, add a dated line to `docs/friction.md`.
 5. Open a PR. Paste the capture block, or describe what you saw, as evidence.
