@@ -83,7 +83,7 @@ export async function close(): Promise<void> {
   browser = null;
 }
 
-function alive(pid: number): boolean {
+export function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
