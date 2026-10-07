@@ -1,6 +1,6 @@
 # rednote-gate
 
-[![npm version](https://img.shields.io/npm/v/rednote-gate)](https://www.npmjs.com/package/rednote-gate) [![License: MIT](https://img.shields.io/github/license/YashShelar007/rednote-gate)](LICENSE) [![CI](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/rednote-gate)](https://www.npmjs.com/package/rednote-gate) [![License: MIT](https://img.shields.io/github/license/YashShelar007/rednote-gate)](LICENSE) [![CI](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/YashShelar007/rednote-gate/actions/workflows/ci.yml) [中文说明](README.zh-CN.md)
 
 rednote-gate drives ONE dedicated throwaway RedNote (Xiaohongshu) account. Never point it at a primary or brand account. It works by browser automation, which is against RedNote's terms of service. The account can be rate limited or banned. Only use an account you can afford to lose.
 
