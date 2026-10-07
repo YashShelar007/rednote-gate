@@ -142,9 +142,8 @@ footer p{max-width:44rem}
     <h1>Nothing posts until you click Approve.</h1>
     <p class="lede">rednote-gate lets Claude Code, Claude Desktop or Codex help run one RedNote (Xiaohongshu) account. Claude researches, drafts notes and replies, and queues them. Each post, comment, reply and like waits on a page on your own computer until you approve it.</p>
     <p class="warn">For one throwaway account only. It drives the RedNote website with a browser, which is against RedNote’s terms, and the account can be banned.</p>
-    <pre role="region" tabindex="0" aria-label="Install commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
-<span class="p">$ </span>cd rednote-gate
-<span class="p">$ </span>npm run setup</code></pre>
+    <pre role="region" tabindex="0" aria-label="Install commands"><code><span class="p">$ </span>npm install -g rednote-gate
+<span class="p">$ </span>rednote-gate setup</code></pre>
     <div class="cta">
       <a class="button" href="https://github.com/YashShelar007/rednote-gate">View on GitHub</a>
       <a href="https://github.com/YashShelar007/rednote-gate#readme">Read the README</a>
@@ -272,15 +271,14 @@ footer p{max-width:44rem}
   <h2 id="h-install">Install</h2>
   <p class="intro">You need Node 20 or newer, a RedNote account made for this, and the phone that account is logged in on.</p>
   <ol>
-    <li>Clone the repo and run setup. It installs Chromium, builds, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code.
-<pre role="region" tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>git clone https://github.com/YashShelar007/rednote-gate.git
-<span class="p">$ </span>cd rednote-gate
-<span class="p">$ </span>npm run setup</code></pre></li>
+    <li>Install from npm and run setup. It installs Chromium, opens the QR login for your throwaway account, and connects rednote-gate to Claude Code. Your data and login live in <code>~/.rednote-gate</code>.
+<pre role="region" tabindex="0" aria-label="Setup commands"><code><span class="p">$ </span>npm install -g rednote-gate
+<span class="p">$ </span>rednote-gate setup</code></pre></li>
     <li>Ask Claude for something, such as &ldquo;post these two photos about my hike&rdquo;. Approve it on the page that opens. It runs as a dry run.</li>
-    <li>When a dry run looks right, switch to live and open a new Claude Code session.
-<pre role="region" tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>npm run live</code></pre></li>
+    <li>When a dry run looks right, switch to live. It asks you to confirm. <code>rednote-gate dry</code> switches back.
+<pre role="region" tabindex="0" aria-label="Go live command"><code><span class="p">$ </span>rednote-gate live</code></pre></li>
   </ol>
-  <p>For Claude Desktop or Codex, see <a href="https://github.com/YashShelar007/rednote-gate#wiring-into-claude-code-claude-desktop-and-codex">the README</a>.</p>
+  <p>For Claude Desktop or Codex, see <a href="https://github.com/YashShelar007/rednote-gate#wiring-into-claude-code-claude-desktop-and-codex">the README</a>. It also covers installing from a clone.</p>
 </section>
 </main>
 
